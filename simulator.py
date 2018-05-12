@@ -161,6 +161,34 @@ class Hand:
         if self.type != other.type: # mixed patterns
             return False
         return self.chain == other.chain and self.primal > other.primal
+        
+    def getHandScore(self):
+        score = 0
+        if self.type == "Pass":
+            score = 0
+        elif self.type == "Solo" and self.chain == 1:
+            score = 1
+        elif self.type == "Pair" and self.chain == 1:
+            score = 2
+        elif self.type == "Trio" and self.chain == 1:
+            score = 4
+        elif self.type == "Solo" and self.chain >= 5:
+            score = 6
+        elif self.type == "Pair" and self.chain >= 3:
+            score = 6
+        elif self.type == "Trio" and self.chain >= 2:
+            score = 8
+        elif self.type == "Four" and self.chain == 1:
+            score = 8
+        elif self.type == "Bomb":
+            score = 10
+        elif self.type == "Four" and self.chain == 2:
+            score = 10
+        elif self.type == "Rocket":
+            score = 16
+        elif self.type == "Four" and self.chain > 2:
+            score = 20
+        return score #/ 100.0
 
 
 class CardInterpreter:

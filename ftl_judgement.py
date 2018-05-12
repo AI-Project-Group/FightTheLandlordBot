@@ -36,8 +36,6 @@ class FTLJudgement:
         for player in range(3):
             self.log("Serve Player %d : "%(player)+simulator.CardInterpreter.getCardName(self.nowCardsPlayer[player]))
 
-
-
     # debug_print
     def log(self, text):
         if self.isDebug:
@@ -46,6 +44,7 @@ class FTLJudgement:
     # simulate the game process
     def work(self):
         isGameFinished = False
+        score = [0,0,0]
         while not isGameFinished: # Looping
             self.nowTurn += 1;
             for playerID in range(3): # 3 players
@@ -68,6 +67,7 @@ class FTLJudgement:
                 if isGameFinished: break
 
                 hand = simulator.Hand(cardsPlayed)
+                score[playerID] += hand.getHandScore()
                 if hand.type == "None": # Not avaliable pattern
                     self.log("The pattern is not recognized")
                     isGameFinished = True
@@ -94,24 +94,39 @@ class FTLJudgement:
                 self.cardTable.extend(cardsPlayed)
 
                 if not len(self.nowCardsPlayer[playerID]): # Finished
-                    result = self.report(playerID)
+                    result = self.report(playerID, score)
                     isGameFinished = True
                     break
-
+            print(score)
             input("Press <ENTER> to continue...")
 
         self.log("Game finished")
+        # @TODO Add Model Training        
         for playerID in range(3): # discard cards to table
             self.cardTable.extend(self.nowCardsPlayer[playerID])
 
         return self.cardTable
-
+    
+    def getFinalScore(self,winner,score):
+        farmerScore = score[1] + score[2]
+        if winner == 0:
+            score[0] = 2 + score[0] / 100.0
+            score[1] = score[2] = farmerScore / 200.0
+        else:
+            score[0] /= 100.0
+            score[1] = score[2] = 2 + farmerScore / 200.0
+        return score      
 
     # Report the result
-    def report(self, winner):
+    def report(self, winner, score):
         self.log("The winner is bot %d"%winner)
-        # @TODO Add Score calculation
-        # @TODO Add Model Training
-
-ftlJudge = FTLJudgement([], True)
+        # Score calculation
+        score = self.getFinalScore(winner,score)
+        print("Final Score:"+str(score))
+        
+    
+testCards = []#list(range(0, 54))
+#testCards[5] = 52
+#testCards[6] = 53
+ftlJudge = FTLJudgement(testCards, True)
 ftlJudge.work()
