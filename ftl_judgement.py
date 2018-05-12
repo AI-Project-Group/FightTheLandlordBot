@@ -53,11 +53,10 @@ class FTLJudgement:
                 data["deal"] = self.cardsPlayer[playerID]
                 player = ftl_bot.FTLBot(data, "Judge")
                 cardsPlayed = player.makeDecision()
-
                 self.log("Player %d [%d] card %s"%(playerID, \
                     len(self.nowCardsPlayer[playerID]), \
                     simulator.CardInterpreter.getCardName(cardsPlayed)))
-                    
+
                 # checks applied
                 for c in cardsPlayed:
                     if not c in self.nowCardsPlayer[playerID]: # player played a card it not owned
@@ -124,9 +123,7 @@ class FTLJudgement:
         score = self.getFinalScore(winner,score)
         print("Final Score:"+str(score))
         
-    
-testCards = []#list(range(0, 54))
-#testCards[5] = 52
-#testCards[6] = 53
-ftlJudge = FTLJudgement(testCards, True)
-ftlJudge.work()
+if __name__ == "__main__":
+    testCards = []#list(range(0, 54))
+    ftlJudge = FTLJudgement(testCards, True)
+    ftlJudge.work()

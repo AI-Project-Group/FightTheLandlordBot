@@ -24,6 +24,8 @@ class FTLSimulator:
         self.cardCnt = [20, 17, 17]
         self.nowTurn = nowTurn
         self.publicCard = publicCard
+        self.lastPlay = []
+        self.lastLastPlay = []
         # If I'm the landlord, public card is already included in my dealing
 
     # Serve cards
@@ -41,6 +43,8 @@ class FTLSimulator:
                 self.myCards.remove(card)
         # Record this play
         self.history[player].append(cards)
+        self.lastLastPlay = self.lastPlay
+        self.lastPlay = cards
 
     def setCardsToFollow(self, cards):
         self.cardsToFollow = cards
@@ -48,12 +52,13 @@ class FTLSimulator:
     # set history directly & retrieve current status
     # no need to set cards to follow any more
     def setHistory(self, historyData):
-        for player in range(3):
-            for t in range(len(historyData[player])):
+        lenh = [len(h) for h in historyData]
+        for t in range(lenh[0]):
+            for player in range(3):
+                if t >= lenh[player]:
+                    continue
                 self.play(player, historyData[player][t])
-        lastPlay = historyData[(self.nowPlayer+2)%3] and historyData[(self.nowPlayer+2)%3][-1]
-        lastLastPlay = historyData[(self.nowPlayer+1)%3] and historyData[(self.nowPlayer+1)%3][-1]
-        self.cardsToFollow = lastPlay or lastLastPlay
+        self.cardsToFollow = self.lastPlay or self.lastLastPlay
         # after this, self.history will be identical to historyData
 
 class Hand:
