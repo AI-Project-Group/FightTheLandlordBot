@@ -282,13 +282,13 @@ class CardInterpreter:
 
         return allHands
 
-    def getKickers(cards, kickerNum):
+    def getKickers(cards, kickerNum, primCard):
         point = Hand.getCardPoint(cards) # get the point expressions
         pointU = list(set(point)) # delete duplicate
 
         # including card 2 (point == 12)
         if kickerNum == 1:
-            return pointU # including joker cards
+            return [[p] for p in pointU if p != primCard] # including joker cards
 
         if kickerNum == 2:
             pointUCnt = [point.count(p) for p in pointU] # count the number of each point
