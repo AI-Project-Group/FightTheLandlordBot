@@ -4,12 +4,13 @@
 import simulator
 import json
 import random
+#from PolicyNetwork import PlayModel
 
 # Fight The Landlord executor
 
 # Initialization using the JSON input
 class FTLBot:
-    def __init__(self, data, dataType = "Judge"):
+    def __init__(self, playmodel, data, dataType = "Judge"):
         self.dataType = dataType
         if dataType == "JSON": # JSON req
             rawInput = json.loads(data)
@@ -61,8 +62,9 @@ class FTLBot:
 
     # Return the decision based on type
     def makeDecision(self):
-        lastHand = simulator.Hand(self.simulator.cardsToFollow)
+        lastHand = simulator.Hand(self.simulator.cardsToFollow)   
         possiblePlays = simulator.CardInterpreter.splitCard(self.simulator.myCards, lastHand)
+        #print(possiblePlays)
         kickerNum = lastHand.kickerNum
 
         # @TODO You need to modify the following part !!
@@ -75,13 +77,19 @@ class FTLBot:
         handChoice = simulator.Hand(cardChoice)
         for c in cardChoice: # Remove for kickers
             self.simulator.myCards.remove(c)
+        #print(cardChoice)
+        #print(self.simulator.myCards)
 
         # Add kickers
         if handChoice.type == "Trio": # Able to add kickers, I won't play shuttle
-            possibleKickers = simulator.CardInterpreter.getKickers(self.simulator.myCards, kickerNum)
+            if lastHand.type == "Pass":
+                kickerNum = 1#random.randint(0,2)
+            possibleKickers = simulator.CardInterpreter.getKickers(self.simulator.myCards, kickerNum, choice[0])
+            print(possibleKickers)
             if len(possibleKickers) >= lastHand.chain: # choose the smallest kickers
                 for i in range(lastHand.chain):
-                    cardChoice.extend(possibleKickers[i])
+                    kickersChoice = simulator.CardInterpreter.selectCardByHand(self.simulator.myCards, possibleKickers[i])
+                    cardChoice.extend(kickersChoice)
 
         # You need to modify the previous part !!
         return self.makeData(cardChoice)

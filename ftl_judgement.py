@@ -4,6 +4,7 @@
 import simulator
 import ftl_bot
 import random
+from PolicyNetwork import PlayModel
 
 # Judge class for Fight The Landlord game
 class FTLJudgement:
@@ -42,7 +43,7 @@ class FTLJudgement:
             print("Turn %d: %s"%(self.nowTurn, text))
 
     # simulate the game process
-    def work(self):
+    def work(self,playmodel):
         isGameFinished = False
         score = [0,0,0]
         while not isGameFinished: # Looping
@@ -51,7 +52,7 @@ class FTLJudgement:
                 data = {"ID": playerID, "nowTurn": self.nowTurn, "publicCard": self.publicCards}
                 data["history"] = self.playerHistory
                 data["deal"] = self.cardsPlayer[playerID]
-                player = ftl_bot.FTLBot(data, "Judge")
+                player = ftl_bot.FTLBot(playmodel, data, "Judge")
                 cardsPlayed = player.makeDecision()
                 self.log("Player %d [%d] card %s"%(playerID, \
                     len(self.nowCardsPlayer[playerID]), \
@@ -85,6 +86,9 @@ class FTLJudgement:
                     break
 
                 # LEGAL
+                net_input = playmodel.ch2input(playerID,self.cardsPlayer[playerID],self.publicCards,self.playerHistory,self.last2Plays[1],self.last2Plays[0])
+                print(net_input.shape)
+                #print(net_input)
                 self.last2Plays[0] = self.last2Plays[1]
                 self.last2Plays[1] = cardsPlayed
                 for c in cardsPlayed:
@@ -126,4 +130,5 @@ class FTLJudgement:
 if __name__ == "__main__":
     testCards = []#list(range(0, 54))
     ftlJudge = FTLJudgement(testCards, True)
-    ftlJudge.work()
+    playmodel = PlayModel("test.ckpt")
+    ftlJudge.work(playmodel)
