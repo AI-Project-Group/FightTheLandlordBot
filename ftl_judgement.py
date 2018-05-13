@@ -87,7 +87,6 @@ class FTLJudgement:
 
                 # LEGAL
                 net_input = playmodel.ch2input(playerID,self.cardsPlayer[playerID],self.publicCards,self.playerHistory,self.last2Plays[1],self.last2Plays[0])
-                print(net_input.shape)
                 #print(net_input)
                 self.last2Plays[0] = self.last2Plays[1]
                 self.last2Plays[1] = cardsPlayed

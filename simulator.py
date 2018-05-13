@@ -332,6 +332,12 @@ class CardInterpreter:
                         if len(kickers) >= length:
                             allHands.append([kickers])
                             allHands[-1].extend(list(range(c-length+1, c+1))*3)
+        for i, c in enumerate(fourRec):
+            for knum in range(1,3):
+                kickers = CardInterpreter.getKickers(cards, knum, [c])
+                if len(kickers) >= 2:
+                    allHands.append([kickers])
+                    allHands[-1].extend([c]*4)
 
         return allHands
     

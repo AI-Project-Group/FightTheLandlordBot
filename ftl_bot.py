@@ -12,6 +12,7 @@ import random
 class FTLBot:
     def __init__(self, playmodel, data, dataType = "Judge"):
         self.dataType = dataType
+        self.playmodel = playmodel
         if dataType == "JSON": # JSON req
             rawInput = json.loads(data)
             rawRequest = rawInput["requests"]
@@ -64,32 +65,33 @@ class FTLBot:
     def makeDecision(self):
         lastHand = simulator.Hand(self.simulator.cardsToFollow)   
         possiblePlays = simulator.CardInterpreter.splitCard(self.simulator.myCards, lastHand)
-        print(possiblePlays)
+        #print(possiblePlays)
         kickerNum = lastHand.kickerNum
 
         # @TODO You need to modify the following part !!
         # A little messed up ...
         if not len(possiblePlays):
             return self.makeData([])
+        
+        sim = self.simulator
+        net_input = self.playmodel.ch2input(sim.nowPlayer,sim.myCards,sim.publicCard,sim.history,sim.lastPlay,sim.lastLastPlay)
+        print(net_input.shape)
 
         choice = random.choice(possiblePlays) # choose a random strategy
+        # Add kickers
+        if choice and isinstance(choice[0],list):
+            tmphand = choice[1:]
+            lenh = len(tmphand)
+            kickers = []
+            if lenh % 3 == 0:
+                kickers = random.sample(choice[0], lenh//3)
+            elif lenh % 4 == 0:
+                kickers = random.sample(choice[0], lenh//2)
+            for k in kickers:
+                tmphand.extend(k)
+            choice = tmphand
         cardChoice = simulator.CardInterpreter.selectCardByHand(self.simulator.myCards, choice)
         handChoice = simulator.Hand(cardChoice)
-        for c in cardChoice: # Remove for kickers
-            self.simulator.myCards.remove(c)
-        #print(cardChoice)
-        #print(self.simulator.myCards)
-
-        # Add kickers
-        if handChoice.type == "Trio": # Able to add kickers, I won't play shuttle
-            if lastHand.type == "Pass":
-                kickerNum = random.randint(0,2)
-            possibleKickers = simulator.CardInterpreter.getKickers(self.simulator.myCards, kickerNum, choice[0])
-            print(possibleKickers)
-            if len(possibleKickers) >= lastHand.chain: # choose the smallest kickers
-                for i in range(lastHand.chain):
-                    kickersChoice = simulator.CardInterpreter.selectCardByHand(self.simulator.myCards, possibleKickers[i])
-                    cardChoice.extend(kickersChoice)
 
         # You need to modify the previous part !!
         return self.makeData(cardChoice)
