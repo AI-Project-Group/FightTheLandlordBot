@@ -95,6 +95,7 @@ class FTLBot:
             for k in kickers:
                 tmphand.extend(k)
             choice = tmphand
+        #print(choice)
         cardChoice = simulator.CardInterpreter.selectCardByHand(self.simulator.myCards, choice)
         #handChoice = simulator.Hand(cardChoice)
 

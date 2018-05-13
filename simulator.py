@@ -368,6 +368,8 @@ class CardInterpreter:
     # Given a hand of point set, select out a set of card of this pattern
     @staticmethod
     def selectCardByHand(cards, pointSet):
+        print(cards)
+        print(pointSet)
         cardsNotUsed = cards[:]
         pointNotUsed = Hand.getCardPoint(cards)
         cardsSelected = []
