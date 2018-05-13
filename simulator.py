@@ -77,7 +77,7 @@ class Hand:
             return card//4
 
     # distinguish cards as hand patterns
-    def __init__(self, cards):
+    def __init__(self, cards, cardPoints=None):
         if isinstance(cards, Hand): # Copy instance
             self.type = cards.type
             self.primal = cards.primal
@@ -94,15 +94,18 @@ class Hand:
         self.kickerNum = 0 # cards added to the basic type, 0: None, 1: Solo, 2: Pair
         # kicker element format: (point, type), type = 1 or 2
         self.chain = 1 # consecutive count. e.g. trio + solo && chain == 3 : Airplane with wings
+        
+        if cardPoints is not None:
+            point = cardPoints
+        else:
+            point = Hand.getCardPoint(cards) # the point representing card points
 
-        point = Hand.getCardPoint(cards) # the point representing card points
-
-        if len(cards) == 0: # passed
+        if len(point) == 0: # passed
             self.type = "Pass"
-        elif len(cards) == 1: # Solo
+        elif len(point) == 1: # Solo
             self.type = "Solo"
             self.primal = point[0]
-        elif len(cards) == 2: # Pair or Rocket
+        elif len(point) == 2: # Pair or Rocket
             if point[0] == 13: # Rocket
                 self.type = "Rocket"
             elif point[0] == point[1]: # Pair
@@ -126,7 +129,7 @@ class Hand:
                 self.type = "Trio"
                 self.primal = min(pointU)
                 self.chain = len(pointU)
-            elif pattern == [1, 3] or pattern == [2, 3]: # Trio + Solo/Pair, including airplane
+            elif len(pointU) % 2 == 0 and (pattern == [1, 3] or pattern == [2, 3]): # Trio + Solo/Pair, including airplane
                 self.type = "Trio"
                 self.primal = min([c for i, c in enumerate(pointU) if pointUCnt[i] == 3])
                 self.chain = len(pointU) // 2
@@ -139,7 +142,7 @@ class Hand:
                     self.type = "Four"
                     self.primal = min(pointU)
                     self.chain = len(pointU)
-            elif pattern == [1, 4] or (pattern == [2, 4] and len(pointU) % 3 == 0): # Four + Dual Solo/Pair, including shuttle
+            elif (pattern == [1, 4] or pattern == [2, 4]) and len(pointU) % 3 == 0: # Four + Dual Solo/Pair, including shuttle
                 # originally, error when cards = [0,1,2,3,4,5]
                 self.type = "Four"
                 self.primal = min([c for i, c in enumerate(pointU) if pointUCnt[i] == 4])
@@ -148,7 +151,7 @@ class Hand:
 
     # get report string
     def report(self):
-        return "%s From %d Len = %d" % (self.type, self.primal, self.chain)
+        return "%s From %d Len = %d KickerNum = %d" % (self.type, self.primal, self.chain, self.kickerNum)
 
     # compare two hands, is this pattern able to follow the other one : T / F
     def isAbleToFollow(self, other):

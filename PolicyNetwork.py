@@ -1,3 +1,4 @@
+import random
 import numpy as np
 import tensorflow as tf
 from simulator import Hand
@@ -46,12 +47,12 @@ class Network:
             out = tf.matmul(intensor,W)+b
         return out
     
-    def save_checkpoint(self):
+    def save_model(self):
         print("Save checkpoint...")
         with self.graph.as_default():      
             self.saver.save(self.sess, self.checkpoint_file)
 
-    def restore_checkpoint(self):
+    def load_model(self):
         print("Restore checkpoint...")
         try:
             with self.graph.as_default():
@@ -65,7 +66,8 @@ class PlayModel(Network):
     def __init__(self,checkpoint_file):
         inUnits = 7*15
         fcUnits = [inUnits,512,1024]
-        outUnits = 252
+        outUnits = 364
+        self.outUnits = outUnits
         
         self.graph = tf.Graph()
         with self.graph.as_default():
@@ -77,7 +79,7 @@ class PlayModel(Network):
                 fc_in = self.fc_layer(fc_in, fcUnits[i], fcUnits[i+1], self.keep_prob, name="fc"+str(i))
             
             self.out = [self.out_layer(fc_in, fcUnits[-1], outUnits, name="out"+str(i)) for i in range(3)]
-            self.y = [tf.nn.softmax(self.out)]
+            self.y = [tf.nn.softmax(self.out[i]) for i in range(3)]
             self.y_ = tf.placeholder(tf.float32, [None, outUnits])
             self.rewards = tf.placeholder(tf.float32, [None])
             
@@ -113,7 +115,159 @@ class PlayModel(Network):
         net_input.append(self.cards2NumArray(lastLastPlay))
         return np.array(net_input).flatten()
     
-    #def hand2idx(self,hand):
-        #if 
-            
-#PlayModel("test.ckpt")
+    def getDisFromChain(self,chain,baseChain,maxNum):
+        chaindis = chain - baseChain
+        num = maxNum
+        res = 0
+        for _ in range(chaindis):
+            res += num
+            num -= 1
+        return res
+    
+    # change cardPoints to the index of network output
+    def cardPs2idx(self,cardPoints):
+        if cardPoints and isinstance(cardPoints[0],list):
+            tmphand = cardPoints[1:]
+            lenh = len(tmphand)
+            kickers = []
+            if lenh % 3 == 0:
+                kickers = cardPoints[0][:lenh//3]
+            elif lenh % 4 == 0:
+                kickers = cardPoints[0][:lenh//2]
+            for k in kickers:
+                tmphand.extend(k)
+            cardPoints = tmphand
+        hand = Hand([],cardPoints)
+        lencp = len(cardPoints)
+        if hand.type == "None" or hand.type == "Pass":
+            return 0
+        elif hand.type == "Solo":
+            if hand.chain == 1:
+                return 1 + hand.primal
+            else:
+                idx = 108
+                idx += self.getDisFromChain(hand.chain,5,8)
+                idx += hand.primal
+                return idx
+        elif hand.type == "Pair":
+            if hand.chain == 1:
+                return 16 + hand.primal
+            else:
+                idx = 144
+                idx += self.getDisFromChain(hand.chain,3,10)
+                idx += hand.primal
+                return idx
+        elif hand.type == "Trio":
+            if hand.chain == 1:
+                return 29 + hand.primal + hand.kickerNum * 13
+            else:
+                idx = 196
+                idx += self.getDisFromChain(hand.chain,2,11)
+                return idx + hand.primal + hand.kickerNum * 45
+        elif hand.type == "Four":
+            if hand.chain == 1:
+                return 68 + hand.primal + (hand.kickerNum-1) * 13
+            else:
+                return 331 + hand.primal + hand.kickerNum * 11
+        elif hand.type == "Bomb":
+            return 94 + hand.primal
+        elif hand.type == "Rocket":
+            return 107
+        else:
+            return 0
+    
+    # change all possible hands to one hot tensor
+    def hand2one_hot(self,allhands):
+        res = np.zeros(self.outUnits)
+        for hand in allhands:
+            idx = self.cardPs2idx(hand)
+            res[idx] = 1
+        return res
+        
+    def getChainFromDis(self,dis,baseChain,maxNum):
+        chain = baseChain
+        num = maxNum
+        while dis >= num:
+            dis -= num
+            num -= 1
+            chain += 1
+        return chain, dis
+    
+    # change index of one hot output to cardPoints
+    # if possible hand has kickers, the first element will be dict
+    def idx2CardPs(self,idx):
+        res = []
+        if idx == 0: # Pass
+            res = []
+        elif idx <= 15: # Solo
+            res = [idx - 1] 
+        elif idx <= 28: # Pair
+            res = [idx - 16]*2
+        elif idx <= 41: # Trio without kickers
+            res = [idx - 29]*3
+        elif idx <= 54: # Trio with one kicker
+            res.append({"kickerNum":1,"chain":1,"type":"Trio"})
+            res.extend([idx-42]*3)
+        elif idx <= 67: # Trio with two kickers
+            res.append({"kickerNum":2,"chain":1,"type":"Trio"})
+            res.extend([idx-55]*3)
+        elif idx <= 80: # Four with one kicker
+            res.append({"kickerNum":1,"chain":1,"type":"Four"})
+            res.extend([idx-68]*4)
+        elif idx <= 93: # Four with two kickers
+            res.append({"kickerNum":2,"chain":1,"type":"Four"})
+            res.extend([idx-81]*4)
+        elif idx <= 106: # Bomb
+            res = [idx - 94]*4
+        elif idx == 107: # Rocket
+            res = [13,14]
+        elif idx <= 143: # Solo Chain
+            chain,primal = self.getChainFromDis(idx-108,5,8)
+            res = list(range(primal,primal+chain))
+        elif idx <= 195: # Pair Chain
+            chain,primal = self.getChainFromDis(idx-144,3,10)
+            res = list(range(primal,primal+chain)) * 2
+        elif idx <= 240: # Airplane without wings
+            chain,primal = self.getChainFromDis(idx-196,2,11)
+            res = list(range(primal,primal+chain)) * 3
+        elif idx <= 285: # Airplane with small wings
+            chain,primal = self.getChainFromDis(idx-241,2,11)
+            res.append({"kickerNum":1,"chain":chain,"type":"Trio"})
+            res.extend(list(range(primal,primal+chain)) * 3)
+        elif idx <= 330: # Airplane with big wings
+            chain,primal = self.getChainFromDis(idx-286,2,11)
+            res.append({"kickerNum":2,"chain":chain,"type":"Trio"})
+            res.extend(list(range(primal,primal+chain)) * 3)
+        elif idx <= 341: # Shuttle without wings
+            chain,primal = self.getChainFromDis(idx-331,2,11)
+            res = list(range(primal,primal+chain)) * 4
+        elif idx <= 352: # Shuttle with small wings
+            chain,primal = self.getChainFromDis(idx-342,2,11)
+            res.append({"kickerNum":1,"chain":chain,"type":"Four"})
+            res.extend(list(range(primal,primal+chain)) * 4)
+        elif idx <= 363: # Shuttle with big wings
+            chain,primal = self.getChainFromDis(idx-353,2,11)
+            res.append({"kickerNum":2,"chain":chain,"type":"Four"})
+            res.extend(list(range(primal,primal+chain)) * 4)            
+        return res
+    
+    # get possible actions
+    def getActions(self,netinput,playerID,allonehot):
+        epsilon = 1e-6
+        output = self.y[playerID].eval(feed_dict={self.x:[netinput], self.keep_prob:1.0})
+        output = output.flatten()
+        #print(output)
+        legalOut = np.multiply(output, allonehot)
+        #print(legalOut)
+        total = np.sum(legalOut)
+        #print(total)
+        randf = random.uniform(0,total)
+        sum = 0
+        #print(randf)
+        for i in range(len(legalOut)):
+            if abs(allonehot[i] - 1) < epsilon:
+                sum += legalOut[i]
+                #print(sum)
+                if randf < sum:
+                    return self.idx2CardPs(i)
+        return self.idx2CardPs(np.argmax(allonehot))

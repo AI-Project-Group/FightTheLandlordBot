@@ -75,23 +75,28 @@ class FTLBot:
         
         sim = self.simulator
         net_input = self.playmodel.ch2input(sim.nowPlayer,sim.myCards,sim.publicCard,sim.history,sim.lastPlay,sim.lastLastPlay)
-        print(net_input.shape)
+        #print(net_input.shape)
+        one_hot_t = self.playmodel.hand2one_hot(possiblePlays)
+        choice = self.playmodel.getActions(net_input,sim.nowPlayer,one_hot_t)
+        #print(choice)
+        #print(one_hot_t)
 
-        choice = random.choice(possiblePlays) # choose a random strategy
+        #choice = random.choice(possiblePlays) # choose a random strategy
         # Add kickers
-        if choice and isinstance(choice[0],list):
+        if choice and isinstance(choice[0],dict):
             tmphand = choice[1:]
             lenh = len(tmphand)
+            allkickers = simulator.CardInterpreter.getKickers(sim.myCards, choice[0]["kickerNum"], list(set(tmphand)))
             kickers = []
-            if lenh % 3 == 0:
-                kickers = random.sample(choice[0], lenh//3)
-            elif lenh % 4 == 0:
-                kickers = random.sample(choice[0], lenh//2)
+            if choice[0]["type"] == "Trio":
+                kickers = random.sample(allkickers, choice[0]["chain"])
+            elif choice[0]["type"] == "Four":
+                kickers = random.sample(allkickers, choice[0]["chain"]*2)
             for k in kickers:
                 tmphand.extend(k)
             choice = tmphand
         cardChoice = simulator.CardInterpreter.selectCardByHand(self.simulator.myCards, choice)
-        handChoice = simulator.Hand(cardChoice)
+        #handChoice = simulator.Hand(cardChoice)
 
         # You need to modify the previous part !!
         return self.makeData(cardChoice)
