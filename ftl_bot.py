@@ -64,7 +64,7 @@ class FTLBot:
     def makeDecision(self):
         lastHand = simulator.Hand(self.simulator.cardsToFollow)   
         possiblePlays = simulator.CardInterpreter.splitCard(self.simulator.myCards, lastHand)
-        #print(possiblePlays)
+        print(possiblePlays)
         kickerNum = lastHand.kickerNum
 
         # @TODO You need to modify the following part !!
@@ -83,7 +83,7 @@ class FTLBot:
         # Add kickers
         if handChoice.type == "Trio": # Able to add kickers, I won't play shuttle
             if lastHand.type == "Pass":
-                kickerNum = 1#random.randint(0,2)
+                kickerNum = random.randint(0,2)
             possibleKickers = simulator.CardInterpreter.getKickers(self.simulator.myCards, kickerNum, choice[0])
             print(possibleKickers)
             if len(possibleKickers) >= lastHand.chain: # choose the smallest kickers

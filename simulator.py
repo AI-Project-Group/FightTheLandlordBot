@@ -139,7 +139,8 @@ class Hand:
                     self.type = "Four"
                     self.primal = min(pointU)
                     self.chain = len(pointU)
-            elif pattern == [1, 4] or pattern == [2, 4]: # Four + Dual Solo/Pair, including shuttle
+            elif pattern == [1, 4] or (pattern == [2, 4] and len(pointU) % 3 == 0): # Four + Dual Solo/Pair, including shuttle
+                # originally, error when cards = [0,1,2,3,4,5]
                 self.type = "Four"
                 self.primal = min([c for i, c in enumerate(pointU) if pointUCnt[i] == 4])
                 self.chain = len(pointU) // 3
@@ -227,9 +228,10 @@ class CardInterpreter:
     # cards: [card_s], cardsToFollow: the card set to follow
     # assume that cards is already sorted
     # return the point representation, may NOT sorted
+    # when the hand has kickers, like "Trio" or "Four", the first element will be kickers
     @staticmethod
     def splitCard(cards, cardsToFollow = []):
-        allHands = [] # all legal cards in points
+        allHands = [[]] # all legal cards in points, originally 'pass' is a legal actions
         # *** colors, kickers, difference between bomb and four are not considered
         lastHand = Hand(cardsToFollow)
         # solos records all solo kickers
@@ -260,6 +262,11 @@ class CardInterpreter:
 
         if lastHand.type == "Four": # kickers appended
             # if lastHand is a shuttle, then here all bombs are listed
+            for i,c in enumerate(fourRec):
+                if lastHand.chain == 1 and c > lastHand.primal:
+                    kickers = CardInterpreter.getKickers(cards, lastHand.kickerNum, [c])
+                    if len(kickers) >= 2:
+                        allHands.append([kickers,c,c,c,c])
             return allHands
 
         # relative to xxxRec lists
@@ -293,10 +300,14 @@ class CardInterpreter:
         if lastHand.type == "Trio":
             for i, c in enumerate(trioRec):
                 if trioChainCnt[i] >= lastHand.chain and c-trioChainCnt[i]+1 > lastHand.primal: # able to follow
-                    allHands.append(list(range(c-lastHand.chain+1, c+1))*3)
+                    kickers = CardInterpreter.getKickers(cards, lastHand.kickerNum, list(range(c-lastHand.chain+1, c+1)))
+                    if len(kickers) >= lastHand.chain:
+                        allHands.append([kickers])
+                        allHands[-1].extend(list(range(c-lastHand.chain+1, c+1))*3)
             return allHands
 
         # Here, lastHand.type = "Pass". you can play any type you want
+        allHands.remove([]) # remove "Pass" actions, you must take out some cards
         for i, c in enumerate(soloRec): # record solo and solo chains (>=5)
             allHands.append([c])
             if soloChainCnt[i] >= 5: # able to play
@@ -309,24 +320,41 @@ class CardInterpreter:
                     allHands.append(list(range(c-length+1, c+1))*2)
         for i, c in enumerate(trioRec): # record trio and trio chains i.e. airplane (>=2)
             allHands.append([c]*3)
+            for knum in range(1,3):
+                kickers = CardInterpreter.getKickers(cards, knum, [c])
+                if len(kickers) > 0:
+                    allHands.append([kickers])
+                    allHands[-1].extend([c]*3)
             if trioChainCnt[i] >= 2: # able to play
                 for length in range(2, trioChainCnt[i]+1):
-                    allHands.append(list(range(c-length+1, c+1))*3)
+                    for knum in range(1,3):
+                        kickers = CardInterpreter.getKickers(cards, knum, list(range(c-length+1, c+1)))
+                        if len(kickers) >= length:
+                            allHands.append([kickers])
+                            allHands[-1].extend(list(range(c-length+1, c+1))*3)
 
         return allHands
-
-    def getKickers(cards, kickerNum, primCard):
+    
+    @staticmethod
+    def getKickers(cards, kickerNum, primCards):
         point = Hand.getCardPoint(cards) # get the point expressions
         pointU = list(set(point)) # delete duplicate
+        res = []
 
         # including card 2 (point == 12)
         if kickerNum == 1:
-            return [[p] for p in pointU if p != primCard] # including joker cards
+            res = [[p] for p in pointU] # including joker cards
+            for p in primCards:
+                if [p] in res:
+                    res.remove([p])
 
         if kickerNum == 2:
             pointUCnt = [point.count(p) for p in pointU] # count the number of each point
-            return [[p]*2 for i, p in enumerate(pointU) if pointUCnt[i] >= 2] # p >= 13: no pair/trio/four
-        return []
+            res = [[p]*2 for i, p in enumerate(pointU) if pointUCnt[i] >= 2] # p >= 13: no pair/trio/four
+            for p in primCards:
+                if [p,p] in res:
+                    res.remove([p,p])
+        return res
 
     # Given a hand of point set, select out a set of card of this pattern
     @staticmethod

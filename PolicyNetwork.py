@@ -112,5 +112,8 @@ class PlayModel(Network):
         net_input.append(self.cards2NumArray(lastPlay))
         net_input.append(self.cards2NumArray(lastLastPlay))
         return np.array(net_input).flatten()
+    
+    #def hand2idx(self,hand):
+        #if 
             
 #PlayModel("test.ckpt")
