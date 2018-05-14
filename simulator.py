@@ -99,6 +99,7 @@ class Hand:
             point = cardPoints
         else:
             point = Hand.getCardPoint(cards) # the point representing card points
+        point.sort()
 
         if len(point) == 0: # passed
             self.type = "Pass"
@@ -113,6 +114,7 @@ class Hand:
                 self.primal = point[0]
         else: # Above, types can be regarded as kickers
             pointU = list(set(point)) # delete duplicate
+            pointU.sort()
             pointUCnt = [point.count(p) for p in pointU] # count the number of each point
             pattern = list(set(pointUCnt)) # get the pattern of point
             pattern.sort()
@@ -368,8 +370,6 @@ class CardInterpreter:
     # Given a hand of point set, select out a set of card of this pattern
     @staticmethod
     def selectCardByHand(cards, pointSet):
-        print(cards)
-        print(pointSet)
         cardsNotUsed = cards[:]
         pointNotUsed = Hand.getCardPoint(cards)
         cardsSelected = []

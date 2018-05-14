@@ -334,5 +334,3 @@ class PlayModel(Network):
             print(self.sess.run(var))
         print(self.loss[player].eval(feed_dict={self.x:netinput, self.keep_prob:1.0, self.y_:acts, self.rewards:rewards}))'''
         #exit(0)
-        
-#print(a.cardPs2idx([0,0,0,0,1,2,2,1]))
