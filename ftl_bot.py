@@ -75,14 +75,11 @@ class FTLBot:
         
         sim = self.simulator
         net_input = self.playmodel.ch2input(sim.nowPlayer,sim.myCards,sim.publicCard,sim.history,sim.lastPlay,sim.lastLastPlay)
-        #print(net_input.shape)
         one_hot_t = self.playmodel.hand2one_hot(possiblePlays)
         choice = self.playmodel.getActions(net_input,sim.nowPlayer,one_hot_t)
-        #print(choice)
-        #print(one_hot_t)
 
-        #choice = random.choice(possiblePlays) # choose a random strategy
-        # Add kickers
+        # Add kickers, if first element is dict, the choice must has some kickers
+        # @TODO get kickers from kickers model
         if choice and isinstance(choice[0],dict):
             tmphand = choice[1:]
             lenh = len(tmphand)
@@ -95,9 +92,8 @@ class FTLBot:
             for k in kickers:
                 tmphand.extend(k)
             choice = tmphand
-        #print(choice)
         cardChoice = simulator.CardInterpreter.selectCardByHand(self.simulator.myCards, choice)
-        #handChoice = simulator.Hand(cardChoice)
+
 
         # You need to modify the previous part !!
         return self.makeData(cardChoice)

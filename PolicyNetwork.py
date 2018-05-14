@@ -100,8 +100,8 @@ class PlayModel(Network):
         self.trainBatch = [[],[],[]]
         self.episodeTemp = [[],[],[]]
         
-        for var in tf.all_variables():
-            print(var)
+        #for var in tf.all_variables():
+            #print(var)
     
     def cards2NumArray(self,cards):
         point = Hand.getCardPoint(cards)

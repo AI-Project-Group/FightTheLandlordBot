@@ -87,7 +87,6 @@ class FTLJudgement:
 
                 # LEGAL
                 net_input = playmodel.ch2input(playerID,self.nowCardsPlayer[playerID],self.publicCards,self.playerHistory,self.last2Plays[1],self.last2Plays[0])
-                print(cardsPlayed)
                 playmodel.storeSamples(net_input,playerID,cardsPlayed)
                 self.last2Plays[0] = self.last2Plays[1]
                 self.last2Plays[1] = cardsPlayed
@@ -131,5 +130,5 @@ class FTLJudgement:
 if __name__ == "__main__":
     testCards = []#list(range(0, 54))
     ftlJudge = FTLJudgement(testCards, True)
-    playmodel = PlayModel("test","test.ckpt")
+    playmodel = PlayModel("test","data/FTL/test.ckpt")
     ftlJudge.work(playmodel)
