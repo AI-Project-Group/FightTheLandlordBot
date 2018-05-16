@@ -10,9 +10,10 @@ import random
 
 # Initialization using the JSON input
 class FTLBot:
-    def __init__(self, playmodel, data, dataType = "Judge"):
+    def __init__(self, playmodel, kickersmodel, data, dataType = "Judge"):
         self.dataType = dataType
         self.playmodel = playmodel
+        self.kickersmodel = kickersmodel
         if dataType == "JSON": # JSON req
             rawInput = json.loads(data)
             rawRequest = rawInput["requests"]
@@ -77,12 +78,13 @@ class FTLBot:
         net_input = self.playmodel.ch2input(sim.nowPlayer,sim.myCards,sim.publicCard,sim.history,sim.lastPlay,sim.lastLastPlay)
         one_hot_t = self.playmodel.hand2one_hot(possiblePlays)
         choice = self.playmodel.getActions(net_input,sim.nowPlayer,one_hot_t)
+         
 
         # Add kickers, if first element is dict, the choice must has some kickers
         # @TODO get kickers from kickers model
         if choice and isinstance(choice[0],dict):
             tmphand = choice[1:]
-            lenh = len(tmphand)
+            kickers_input = self.kickersmodel.ch2input(net_input,tmphand)
             allkickers = simulator.CardInterpreter.getKickers(sim.myCards, choice[0]["kickerNum"], list(set(tmphand)))
             kickers = []
             if choice[0]["type"] == "Trio":
@@ -93,7 +95,8 @@ class FTLBot:
                 tmphand.extend(k)
             choice = tmphand
         cardChoice = simulator.CardInterpreter.selectCardByHand(self.simulator.myCards, choice)
-
+        
+        self.playmodel.storeSamples(net_input,sim.nowPlayer,cardChoice)
 
         # You need to modify the previous part !!
         return self.makeData(cardChoice)

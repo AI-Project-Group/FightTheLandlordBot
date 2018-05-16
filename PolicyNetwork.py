@@ -103,26 +103,28 @@ class PlayModel(Network):
         #for var in tf.all_variables():
             #print(var)
     
-    def cards2NumArray(self,cards):
+    @staticmethod
+    def cards2NumArray(cards):
         point = Hand.getCardPoint(cards)
         res = np.zeros(15)
         for p in point:
             res[p] += 1
         return res
     
-    def ch2input(self,playerID,myCards,publicCards,history,lastPlay,lastLastPlay):
+    @staticmethod
+    def ch2input(playerID,myCards,publicCards,history,lastPlay,lastLastPlay):
         net_input = []
-        net_input.append(self.cards2NumArray(myCards))
-        net_input.append(self.cards2NumArray(publicCards))
+        net_input.append(PlayModel.cards2NumArray(myCards))
+        net_input.append(PlayModel.cards2NumArray(publicCards))
         player = playerID
         for _ in range(3):
             tmphis = []
             for his in history[player]:
                 tmphis.extend(his)
-            net_input.append(self.cards2NumArray(tmphis))
+            net_input.append(PlayModel.cards2NumArray(tmphis))
             player = (player - 1) % 3
-        net_input.append(self.cards2NumArray(lastPlay))
-        net_input.append(self.cards2NumArray(lastLastPlay))
+        net_input.append(PlayModel.cards2NumArray(lastPlay))
+        net_input.append(PlayModel.cards2NumArray(lastLastPlay))
         return np.array(net_input).flatten()
     
     def getDisFromChain(self,chain,baseChain,maxNum):
@@ -334,3 +336,46 @@ class PlayModel(Network):
             print(self.sess.run(var))
         print(self.loss[player].eval(feed_dict={self.x:netinput, self.keep_prob:1.0, self.y_:acts, self.rewards:rewards}))'''
         #exit(0)
+
+        
+class KickersModel(Network):
+    
+    def __init__(self,modelname,checkpoint_file):
+        inUnits = 8*15
+        fcUnits = [inUnits,512,1024]
+        outUnits = 28
+        self.outUnits = outUnits
+        self.name = modelname
+        
+        with tf.name_scope(modelname):
+            self.x = tf.placeholder(tf.float32, [None, inUnits])
+            self.keep_prob = tf.placeholder(tf.float32)
+            
+            fc_in = self.x
+            for i in range(len(fcUnits)-1):
+                fc_in = self.fc_layer(fc_in, fcUnits[i], fcUnits[i+1], self.keep_prob, name="fc"+str(i))
+            
+            self.out = self.out_layer(fc_in, fcUnits[-1], outUnits, name="out")
+            self.y = tf.nn.softmax(self.out)
+            self.y_ = tf.placeholder(tf.float32, [None, outUnits])
+            self.rewards = tf.placeholder(tf.float32, [None])
+            
+            self.cross_entropy = tf.nn.softmax_cross_entropy_with_logits(labels=self.y_, logits=self.out)
+            self.loss = tf.reduce_sum(tf.multiply(self.cross_entropy, self.rewards))
+            self.train_step = tf.train.AdamOptimizer(LearningRate).minimize(self.loss)
+        
+        super(KickersModel, self).__init__(modelname,checkpoint_file)
+        #print(tf.all_variables())
+        self.trainBatch = []
+        self.episodeTemp = []
+    
+    @staticmethod
+    def ch2input(playmodel_input, primPoints):
+        res = playmodel_input.tolist()
+        prims = np.zeros(15)
+        for p in primPoints:
+            prims[p] += 1
+        res.extend(prims)
+        return np.array(res)
+    
+    

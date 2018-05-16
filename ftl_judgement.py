@@ -4,7 +4,7 @@
 import simulator
 import ftl_bot
 import random
-from PolicyNetwork import PlayModel
+from PolicyNetwork import PlayModel, KickersModel
 
 # Judge class for Fight The Landlord game
 class FTLJudgement:
@@ -43,7 +43,7 @@ class FTLJudgement:
             print("Turn %d: %s"%(self.nowTurn, text))
 
     # simulate the game process
-    def work(self,playmodel):
+    def work(self,playmodel,kickersmodel):
         isGameFinished = False
         score = [0,0,0]
         while not isGameFinished: # Looping
@@ -52,7 +52,7 @@ class FTLJudgement:
                 data = {"ID": playerID, "nowTurn": self.nowTurn, "publicCard": self.publicCards}
                 data["history"] = self.playerHistory
                 data["deal"] = self.cardsPlayer[playerID]
-                player = ftl_bot.FTLBot(playmodel, data, "Judge")
+                player = ftl_bot.FTLBot(playmodel, kickersmodel, data, "Judge")
                 cardsPlayed = player.makeDecision()
                 self.log("Player %d [%d] card %s"%(playerID, \
                     len(self.nowCardsPlayer[playerID]), \
@@ -86,8 +86,9 @@ class FTLJudgement:
                     break
 
                 # LEGAL
-                net_input = playmodel.ch2input(playerID,self.nowCardsPlayer[playerID],self.publicCards,self.playerHistory,self.last2Plays[1],self.last2Plays[0])
-                playmodel.storeSamples(net_input,playerID,cardsPlayed)
+                #net_input = playmodel.ch2input(playerID,self.nowCardsPlayer[playerID],self.publicCards,self.playerHistory,self.last2Plays[1],self.last2Plays[0])
+                #kick_input = kickersmodel.ch2input(net_input,cardsPlayed)
+                #playmodel.storeSamples(net_input,playerID,cardsPlayed)
                 self.last2Plays[0] = self.last2Plays[1]
                 self.last2Plays[1] = cardsPlayed
                 for c in cardsPlayed:
@@ -128,7 +129,8 @@ class FTLJudgement:
         print("Final Score:"+str(score))
         
 if __name__ == "__main__":
-    testCards = []#list(range(0, 54))
+    testCards = list(range(0, 54))
     ftlJudge = FTLJudgement(testCards, True)
     playmodel = PlayModel("test","data/FTL/test.ckpt")
-    ftlJudge.work(playmodel)
+    kickersmodel = KickersModel("test2","data/FTL/kicker.ckpt")
+    ftlJudge.work(playmodel,kickersmodel)
