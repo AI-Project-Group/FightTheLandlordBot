@@ -4,6 +4,7 @@
 import simulator
 import ftl_bot
 import random
+import tensorflow as tf
 from PolicyNetwork import PlayModel, KickersModel
 
 # Judge class for Fight The Landlord game
@@ -97,15 +98,16 @@ class FTLJudgement:
                     result = self.report(playerID, score)
                     isGameFinished = True
                     break
-            print(score)
-            input("Press <ENTER> to continue...")
+            #print(score)
+            if self.isDebug:
+                input("Press <ENTER> to continue...")
 
         self.log("Game finished")
         # @TODO Add Model Training        
         for playerID in range(3): # discard cards to table
             self.cardTable.extend(self.nowCardsPlayer[playerID])
         turnscores = playmodel.finishEpisode(score)
-        print(turnscores)
+        #print(turnscores)
         kickersmodel.finishEpisode(turnscores)
 
         return self.cardTable
@@ -128,12 +130,18 @@ class FTLJudgement:
         print("Final Score:"+str(score))
         
 if __name__ == "__main__":
-    testCards = []#list(range(0, 54))
-    ftlJudge = FTLJudgement(testCards, True)
-    playmodel = PlayModel("test","data/FTL/test.ckpt")
-    #playmodel.load_model()
-    #playmodel.save_model()
-    kickersmodel = KickersModel("test2","data/FTL/test.ckpt")
+    sess = tf.InteractiveSession()
+    playmodel = PlayModel("test",sess,"data/FTL/test.ckpt")
+    kickersmodel = KickersModel("test2",sess,"data/FTL/test.ckpt")
+    tf.global_variables_initializer().run()
+    playmodel.load_model()
     kickersmodel.load_model()
-    kickersmodel.save_model()
-    ftlJudge.work(playmodel,kickersmodel)
+    episode = 1
+    while True:
+        print("Train Episode: %d"%(episode))
+        testCards = []#list(range(0, 54))   
+        ftlJudge = FTLJudgement(testCards, False)
+        ftlJudge.work(playmodel,kickersmodel)
+        if episode % 50 == 0:
+            kickersmodel.save_model()
+        episode += 1
