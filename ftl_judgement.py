@@ -117,9 +117,13 @@ class FTLJudgement:
         if winner == 0:
             score[0] = 2 + score[0] / 100.0
             score[1] = score[2] = farmerScore / 200.0
+            score[0] = score[0] - score[1]
+            score[1] = score[2] = -score[0]
         else:
             score[0] /= 100.0
             score[1] = score[2] = 2 + farmerScore / 200.0
+            score[1] = score[2] = score[1] - score[0]
+            score[0] = -score[1]
         return score      
 
     # Report the result
@@ -139,8 +143,8 @@ if __name__ == "__main__":
     episode = 1
     while True:
         print("Train Episode: %d"%(episode))
-        testCards = []#list(range(0, 54))   
-        ftlJudge = FTLJudgement(testCards, False)
+        testCards = list(range(0, 54))   
+        ftlJudge = FTLJudgement(testCards, True)
         ftlJudge.work(playmodel,kickersmodel)
         if episode % 50 == 0:
             kickersmodel.save_model()

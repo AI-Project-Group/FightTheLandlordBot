@@ -301,12 +301,15 @@ class PlayModel(Network):
         #print(self.episodeTemp)
         for p in range(3):
             for data in self.episodeTemp[p]:
+                if data[2] <= 0:
+                    continue
                 self.trainBatch[p].append(data)
                 if len(self.trainBatch[p]) == BatchSize:
                     random.shuffle(self.trainBatch[p])
                     self.trainModel(p)
                     self.trainBatch[p] = []
         
+        #print(self.trainBatch)
         self.episodeTemp = [[],[],[]]
         for i in range(3):
             turnscores[i] = turnscores[i][::-1]
@@ -433,6 +436,8 @@ class KickersModel(Network):
         #print(len(self.episodeTemp))
         #print(len(self.trainBatch))
         for data in self.episodeTemp:
+            if data[3] <= 0:
+                continue
             self.trainBatch.append([data[0],data[2],data[3]])
             if len(self.trainBatch) >= KickersBatch:
                 random.shuffle(self.trainBatch)
