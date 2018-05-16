@@ -3,8 +3,9 @@ import numpy as np
 import tensorflow as tf
 from simulator import Hand
 
-LearningRate = 1e-4
+LearningRate = 5e-4
 BatchSize = 20
+KickersBatch = 2
 Gamma = 0.95
 MaxEpoch = 5
 TrainKeepProb = 0.75
@@ -17,6 +18,7 @@ class Network:
             tf.global_variables_initializer().run()      
             self.saver = tf.train.Saver()
         self.checkpoint_file = checkpoint_file
+        self.name = modelname
     
     @staticmethod
     def conv_layer(intensor,conWidth,conStride,inUnits,outUnits,name="conv"):
@@ -52,14 +54,12 @@ class Network:
     
     def save_model(self):
         print("Save checkpoint...")
-        with self.graph.as_default():      
-            self.saver.save(self.sess, self.checkpoint_file)
+        self.saver.save(self.sess, self.checkpoint_file)
 
     def load_model(self):
         print("Restore checkpoint...")
         try:
-            with self.graph.as_default():
-                self.saver.restore(self.sess, self.checkpoint_file)
+            self.saver.restore(self.sess, self.checkpoint_file)
         except Exception as err:
             print("Fail to restore...")
             print(err)
@@ -293,9 +293,11 @@ class PlayModel(Network):
     # compute rewards and train
     def finishEpisode(self, scores):
         
+        turnscores = [[],[],[]]
         for p in range(3):
             for tmp in self.episodeTemp[p][::-1]:
                 tmp[2] = scores[p]
+                turnscores[p].append(scores[p])
                 scores[p] *= Gamma
         
         #print(self.episodeTemp)
@@ -308,9 +310,13 @@ class PlayModel(Network):
                     self.trainBatch[p] = []
         
         self.episodeTemp = [[],[],[]]
+        for i in range(3):
+            turnscores[i] = turnscores[i][::-1]
+        return turnscores
         
     # train the model
     def trainModel(self,player):
+        print("Train for PlayModel and player=%d..." %(player))
         batch = self.trainBatch[player]
         netinput = [d[0] for d in batch]
         actidxs = [d[1] for d in batch]
@@ -318,24 +324,20 @@ class PlayModel(Network):
         acts = np.zeros((BatchSize,self.outUnits))
         for i in range(BatchSize):
             acts[i][actidxs[i]] = 1
-        #print(actidxs)
-        #print(player)
-        #print(acts.tolist())
         
-        '''tmpvar = []
+        tmpvar = []
         for var in tf.global_variables():
             if var.name == self.name+"/out1/W:0" or var.name == self.name+"/out0/W:0" or var.name == self.name+"/out2/W:0":
                 tmpvar.append(var)
         for var in tmpvar:
             print(self.sess.run(var))
-        print(self.loss[player].eval(feed_dict={self.x:netinput, self.keep_prob:1.0,  self.y_:acts, self.rewards:rewards}))'''
+        print(self.loss[player].eval(feed_dict={self.x:netinput, self.keep_prob:1.0,  self.y_:acts, self.rewards:rewards}))
         #print(self.loss.eval(feed_dict={self.x:netinput, self.keep_prob:1.0, self.identity:players, self.y_:acts, self.rewards:rewards}))
         for _ in range(MaxEpoch):
             self.sess.run(self.train_step[player], feed_dict={self.x:netinput, self.keep_prob:TrainKeepProb, self.y_:acts, self.rewards:rewards})
         '''for var in tmpvar:
             print(self.sess.run(var))
         print(self.loss[player].eval(feed_dict={self.x:netinput, self.keep_prob:1.0, self.y_:acts, self.rewards:rewards}))'''
-        #exit(0)
 
         
 class KickersModel(Network):
@@ -377,5 +379,81 @@ class KickersModel(Network):
             prims[p] += 1
         res.extend(prims)
         return np.array(res)
+        
+    def cardPs2idx(self,cardPoints):
+        if len(cardPoints) == 1:
+            return cardPoints[0]
+        elif len(cardPoints) == 2 and cardPoints[0] < 13:
+            return cardPoints[0] + 15
+        else:
+            return -1
     
+    def allkickers2onehot(self,allkicers):
+        res = np.zeros(self.outUnits)
+        for k in allkicers:
+            idx = self.cardPs2idx(k)
+            res[idx] = 1
+        return res        
     
+    def idx2CardPs(self,idx):
+        if idx < 15:
+            return [idx]
+        else:
+            return [idx-15]*2
+    
+    def getKickers(self,netinput,allonehot):
+        epsilon = 1e-6
+        output = self.y.eval(feed_dict={self.x:[netinput], self.keep_prob:1.0})
+        output = output.flatten()
+        legalOut = np.multiply(output, allonehot)
+        #print(legalOut)
+        total = np.sum(legalOut)
+        #print(total)
+        randf = random.uniform(0,total)
+        sum = 0
+        #print(randf)
+        for i in range(len(legalOut)):
+            if abs(allonehot[i] - 1) < epsilon:
+                sum += legalOut[i]
+                #print(sum)
+                if randf < sum:
+                    return self.idx2CardPs(i)
+        return self.idx2CardPs(np.argmax(allonehot))
+
+    def storeSamples(self, netinput, playerID, kickers, turn):
+        actidx = self.cardPs2idx(kickers)
+        self.episodeTemp.append([netinput, playerID, actidx, turn])
+     
+    def finishEpisode(self,turnscores):
+        for tmp in self.episodeTemp:
+            t = tmp[3]
+            p = tmp[1]
+            tmp[3] = turnscores[p][t]
+        
+        #print(self.episodeTemp)
+        for data in self.episodeTemp:
+            self.trainBatch.append([data[0],data[2],data[3]])
+            if len(self.trainBatch) >= KickersBatch:
+                random.shuffle(self.trainBatch)
+                self.trainModel()
+                self.trainBatch = []
+        
+        self.episodeTemp = []
+        
+    def trainModel(self):
+        print("Train for KickersModel...")
+        batch = self.trainBatch
+        netinput = [d[0] for d in batch]
+        actidxs = [d[1] for d in batch]
+        rewards = [d[2] for d in batch]
+        acts = np.zeros((KickersBatch,self.outUnits))
+        for i in range(KickersBatch):
+            acts[i][actidxs[i]] = 1
+        print(actidxs)
+
+        vals = self.y.eval(feed_dict={self.x:netinput, self.keep_prob:1.0})
+        print(vals)
+        for _ in range(MaxEpoch):
+            self.sess.run(self.train_step, feed_dict={self.x:netinput, self.keep_prob:TrainKeepProb, self.y_:acts, self.rewards:rewards})
+        vals = self.y.eval(feed_dict={self.x:netinput, self.keep_prob:1.0})
+        print(vals)

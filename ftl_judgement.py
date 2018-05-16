@@ -86,9 +86,6 @@ class FTLJudgement:
                     break
 
                 # LEGAL
-                #net_input = playmodel.ch2input(playerID,self.nowCardsPlayer[playerID],self.publicCards,self.playerHistory,self.last2Plays[1],self.last2Plays[0])
-                #kick_input = kickersmodel.ch2input(net_input,cardsPlayed)
-                #playmodel.storeSamples(net_input,playerID,cardsPlayed)
                 self.last2Plays[0] = self.last2Plays[1]
                 self.last2Plays[1] = cardsPlayed
                 for c in cardsPlayed:
@@ -107,7 +104,9 @@ class FTLJudgement:
         # @TODO Add Model Training        
         for playerID in range(3): # discard cards to table
             self.cardTable.extend(self.nowCardsPlayer[playerID])
-        playmodel.finishEpisode(score)
+        turnscores = playmodel.finishEpisode(score)
+        print(turnscores)
+        kickersmodel.finishEpisode(turnscores)
 
         return self.cardTable
     
@@ -129,8 +128,12 @@ class FTLJudgement:
         print("Final Score:"+str(score))
         
 if __name__ == "__main__":
-    testCards = list(range(0, 54))
+    testCards = []#list(range(0, 54))
     ftlJudge = FTLJudgement(testCards, True)
     playmodel = PlayModel("test","data/FTL/test.ckpt")
-    kickersmodel = KickersModel("test2","data/FTL/kicker.ckpt")
+    #playmodel.load_model()
+    #playmodel.save_model()
+    kickersmodel = KickersModel("test2","data/FTL/test.ckpt")
+    kickersmodel.load_model()
+    kickersmodel.save_model()
     ftlJudge.work(playmodel,kickersmodel)

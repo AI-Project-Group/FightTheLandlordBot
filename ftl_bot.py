@@ -67,7 +67,6 @@ class FTLBot:
         lastHand = simulator.Hand(self.simulator.cardsToFollow)   
         possiblePlays = simulator.CardInterpreter.splitCard(self.simulator.myCards, lastHand)
         #print(possiblePlays)
-        kickerNum = lastHand.kickerNum
 
         # @TODO You need to modify the following part !!
         # A little messed up ...
@@ -86,13 +85,19 @@ class FTLBot:
             tmphand = choice[1:]
             kickers_input = self.kickersmodel.ch2input(net_input,tmphand)
             allkickers = simulator.CardInterpreter.getKickers(sim.myCards, choice[0]["kickerNum"], list(set(tmphand)))
+            kickers_onehot = self.kickersmodel.allkickers2onehot(allkickers)
+            num = choice[0]['chain']
+            if choice[0]["type"] == "Four":
+                num *= 2
             kickers = []
-            if choice[0]["type"] == "Trio":
-                kickers = random.sample(allkickers, choice[0]["chain"])
-            elif choice[0]["type"] == "Four":
-                kickers = random.sample(allkickers, choice[0]["chain"]*2)
+            for _ in range(num):
+                kickers.append(self.kickersmodel.getKickers(kickers_input,kickers_onehot))
+                kidx = self.kickersmodel.cardPs2idx(kickers[-1])
+                kickers_onehot[kidx] = 0
             for k in kickers:
                 tmphand.extend(k)
+                self.kickersmodel.storeSamples(kickers_input,sim.nowPlayer,k,sim.nowTurn)
+            #print(self.kickersmodel.episodeTemp)
             choice = tmphand
         cardChoice = simulator.CardInterpreter.selectCardByHand(self.simulator.myCards, choice)
         
