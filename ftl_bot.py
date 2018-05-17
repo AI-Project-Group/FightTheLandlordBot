@@ -100,8 +100,8 @@ class FTLBot:
             #print(self.kickersmodel.episodeTemp)
             choice = tmphand
         cardChoice = simulator.CardInterpreter.selectCardByHand(self.simulator.myCards, choice)
-        
-        self.playmodel.storeSamples(net_input,sim.nowPlayer,cardChoice)
+
+        self.playmodel.storeSamples(net_input,sim.nowPlayer,cardChoice,len(possiblePlays) == 1 and choice == [])
 
         # You need to modify the previous part !!
         return self.makeData(cardChoice)

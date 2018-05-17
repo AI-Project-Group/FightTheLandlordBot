@@ -98,8 +98,8 @@ class FTLJudgement:
                     result = self.report(playerID, score)
                     isGameFinished = True
                     break
-            #print(score)
             if self.isDebug:
+                print(score)
                 input("Press <ENTER> to continue...")
 
         self.log("Game finished")
@@ -115,15 +115,19 @@ class FTLJudgement:
     def getFinalScore(self,winner,score):
         farmerScore = score[1] + score[2]
         if winner == 0:
-            score[0] = 2 + score[0] / 100.0
+            score[0] = 1 + score[0] / 100.0
             score[1] = score[2] = farmerScore / 200.0
             score[0] = score[0] - score[1]
             score[1] = score[2] = -score[0]
         else:
             score[0] /= 100.0
-            score[1] = score[2] = 2 + farmerScore / 200.0
+            score[1] = score[2] = 1 + farmerScore / 200.0
             score[1] = score[2] = score[1] - score[0]
             score[0] = -score[1]
+            if winner == 1:
+                score[2] -= 1
+            else:
+                score[1] -= 1
         return score      
 
     # Report the result
@@ -141,11 +145,13 @@ if __name__ == "__main__":
     playmodel.load_model()
     kickersmodel.load_model()
     episode = 1
+    trainCards = list(range(0, 54))
+    random.shuffle(trainCards)
     while True:
         print("Train Episode: %d"%(episode))
-        testCards = list(range(0, 54))   
-        ftlJudge = FTLJudgement(testCards, True)
+        ftlJudge = FTLJudgement([], True)
         ftlJudge.work(playmodel,kickersmodel)
-        if episode % 50 == 0:
+        if episode % 100 == 0:
             kickersmodel.save_model()
+            random.shuffle(trainCards)
         episode += 1

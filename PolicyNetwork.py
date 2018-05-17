@@ -3,7 +3,7 @@ import numpy as np
 import tensorflow as tf
 from simulator import Hand
 
-LearningRate = 1e-5
+LearningRate = 1e-4
 BatchSize = 256
 KickersBatch = 16
 Gamma = 0.95
@@ -66,7 +66,7 @@ class PlayModel(Network):
 
     def __init__(self,modelname,sess,checkpoint_file):
         inUnits = 7*15
-        fcUnits = [inUnits,512,1024]
+        fcUnits = [inUnits,256,512,1024]
         outUnits = 364
         self.outUnits = outUnits
         self.name = modelname
@@ -97,6 +97,7 @@ class PlayModel(Network):
         #print(tf.all_variables())
         self.trainBatch = [[],[],[]]
         self.episodeTemp = [[],[],[]]
+        self.lastWinner = -1
         
         #for var in tf.all_variables():
             #print(var)
@@ -283,9 +284,9 @@ class PlayModel(Network):
         return self.idx2CardPs(np.argmax(allonehot))
     
     # store the train samples
-    def storeSamples(self, netinput, playerID, action):
+    def storeSamples(self, netinput, playerID, action, isPass):
         actidx = self.cardPs2idx(Hand.getCardPoint(action))
-        self.episodeTemp[playerID].append([netinput,actidx,0])
+        self.episodeTemp[playerID].append([netinput,actidx,0, isPass])
         #print(self.episodeTemp)
     
     # compute rewards and train
@@ -299,16 +300,20 @@ class PlayModel(Network):
                 scores[p] *= Gamma
         
         #print(self.episodeTemp)
-        for p in range(3):
-            for data in self.episodeTemp[p]:
-                if data[2] <= 0:
-                    continue
-                self.trainBatch[p].append(data)
-                if len(self.trainBatch[p]) == BatchSize:
-                    random.shuffle(self.trainBatch[p])
-                    self.trainModel(p)
-                    self.trainBatch[p] = []
-        
+        nowWinner = 0 if scores[0] > 0 else 1
+        if nowWinner != self.lastWinner:
+            print("Add to Train Batch...")
+            for p in range(3):
+                for data in self.episodeTemp[p]:
+                    if data[3]:
+                        continue
+                    self.trainBatch[p].append(data)
+                    if len(self.trainBatch[p]) == BatchSize:
+                        random.shuffle(self.trainBatch[p])
+                        self.trainModel(p)
+                        self.trainBatch[p] = []
+                        
+        self.lastWinner = nowWinner
         #print(self.trainBatch)
         self.episodeTemp = [[],[],[]]
         for i in range(3):
@@ -323,10 +328,17 @@ class PlayModel(Network):
         actidxs = [d[1] for d in batch]
         rewards = [d[2] for d in batch]
         acts = np.zeros((BatchSize,self.outUnits))
+        #for i in range(BatchSize):
+            #acts[i][actidxs[i]] = 1
         for i in range(BatchSize):
-            acts[i][actidxs[i]] = 1
-        #print(acts)
-        #print(rewards)
+            if rewards[i] > 0:
+                acts[i][actidxs[i]] = 1
+            elif rewards[i] < 0:
+                rewards[i] = -rewards[i]
+                randi = random.randint(0,self.outUnits-1)
+                acts[i][randi] = 1
+        print(actidxs)
+        print(rewards)        
         
         '''tmpvar = []
         for var in tf.global_variables():
@@ -334,10 +346,12 @@ class PlayModel(Network):
                 tmpvar.append(var)
         for var in tmpvar:
             print(self.sess.run(var))'''
-        #print(self.loss[player].eval(feed_dict={self.x:netinput, self.keep_prob:1.0,  self.y_:acts, self.rewards:rewards}))
-        #print(self.loss.eval(feed_dict={self.x:netinput, self.keep_prob:1.0, self.identity:players, self.y_:acts, self.rewards:rewards}))
+        vals = self.y[player].eval(feed_dict={self.x:netinput,self.keep_prob:1.0})
+        print(vals)
+        print(np.sum(vals))
         for _ in range(MaxEpoch):
             self.sess.run(self.train_step[player], feed_dict={self.x:netinput, self.keep_prob:TrainKeepProb, self.y_:acts, self.rewards:rewards})
+        print(self.y[player].eval(feed_dict={self.x:netinput,self.keep_prob:1.0}))
         '''for var in tmpvar:
             print(self.sess.run(var))
         print(self.loss[player].eval(feed_dict={self.x:netinput, self.keep_prob:1.0, self.y_:acts, self.rewards:rewards}))'''
@@ -457,18 +471,18 @@ class KickersModel(Network):
             acts[i][actidxs[i]] = 1
         print(actidxs)
 
-        tmpvar = []
+        '''tmpvar = []
         for var in tf.global_variables():
             if var.name == self.name+"/out/W:0" :
                 tmpvar.append(var)
         for var in tmpvar:
-            print(self.sess.run(var))        
+            print(self.sess.run(var))  '''      
  
-        #vals = self.y.eval(feed_dict={self.x:netinput, self.keep_prob:1.0})
-        #print(vals)
+        vals = self.y.eval(feed_dict={self.x:netinput, self.keep_prob:1.0})
+        print(vals)
         for _ in range(MaxEpoch):
             self.sess.run(self.train_step, feed_dict={self.x:netinput, self.keep_prob:TrainKeepProb, self.y_:acts, self.rewards:rewards})
-        #vals = self.y.eval(feed_dict={self.x:netinput, self.keep_prob:1.0})
-        #print(vals)
-        for var in tmpvar:
-            print(self.sess.run(var))  
+        vals = self.y.eval(feed_dict={self.x:netinput, self.keep_prob:1.0})
+        print(vals)
+        '''for var in tmpvar:
+            print(self.sess.run(var))'''  
