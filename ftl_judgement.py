@@ -5,7 +5,7 @@ import simulator
 import ftl_bot
 import random
 import tensorflow as tf
-from PolicyNetwork import PlayModel, KickersModel
+from Network import PlayModel, ValueModel, KickersModel
 
 # Judge class for Fight The Landlord game
 class FTLJudgement:
@@ -53,7 +53,7 @@ class FTLJudgement:
                 data = {"ID": playerID, "nowTurn": self.nowTurn, "publicCard": self.publicCards}
                 data["history"] = self.playerHistory
                 data["deal"] = self.cardsPlayer[playerID]
-                player = ftl_bot.FTLBot(playmodel, kickersmodel, data, "Judge")
+                player = ftl_bot.FTLBot(playmodel[playerID], kickersmodel, data, "Judge")
                 cardsPlayed = player.makeDecision()
                 self.log("Player %d [%d] card %s"%(playerID, \
                     len(self.nowCardsPlayer[playerID]), \
@@ -103,10 +103,11 @@ class FTLJudgement:
                 input("Press <ENTER> to continue...")
 
         self.log("Game finished")
+        turnscores = [[],[],[]]
         # @TODO Add Model Training        
         for playerID in range(3): # discard cards to table
             self.cardTable.extend(self.nowCardsPlayer[playerID])
-        turnscores = playmodel.finishEpisode(score)
+            turnscores[playerID] = playmodel[playerID].finishEpisode(score[playerID])
         #print(turnscores)
         kickersmodel.finishEpisode(turnscores)
 
@@ -115,19 +116,13 @@ class FTLJudgement:
     def getFinalScore(self,winner,score):
         farmerScore = score[1] + score[2]
         if winner == 0:
-            score[0] = 1 + score[0] / 100.0
-            score[1] = score[2] = farmerScore / 200.0
-            score[0] = score[0] - score[1]
-            score[1] = score[2] = -score[0]
+            score[1] = score[2] = farmerScore / 2.0
+            score[0] = 100 - score[1] + score[0]
+            #score[1] = score[2] = 0
         else:
-            score[0] /= 100.0
-            score[1] = score[2] = 1 + farmerScore / 200.0
-            score[1] = score[2] = score[1] - score[0]
-            score[0] = -score[1]
-            if winner == 1:
-                score[2] -= 1
-            else:
-                score[1] -= 1
+            score[0] /= 1.0
+            score[1] = score[2] = 100 - score[0] + farmerScore / 2.0
+            #score[0] = 0
         return score      
 
     # Report the result
@@ -139,18 +134,19 @@ class FTLJudgement:
         
 if __name__ == "__main__":
     sess = tf.InteractiveSession()
-    playmodel = PlayModel("test",sess,"data/FTL/test.ckpt")
-    kickersmodel = KickersModel("test2",sess,"data/FTL/test.ckpt")
+    valuemodel = [ValueModel("val"+str(i),sess,i,"data/FTL/test.ckpt") for i in range(3)]
+    kickersmodel = KickersModel("kick",sess,"data/FTL/test.ckpt")
     tf.global_variables_initializer().run()
-    playmodel.load_model()
+    for i in range(3):
+        valuemodel[i].load_model()
     kickersmodel.load_model()
     episode = 1
     trainCards = list(range(0, 54))
     random.shuffle(trainCards)
     while True:
         print("Train Episode: %d"%(episode))
-        ftlJudge = FTLJudgement([], True)
-        ftlJudge.work(playmodel,kickersmodel)
+        ftlJudge = FTLJudgement([], False)
+        ftlJudge.work(valuemodel,kickersmodel)
         if episode % 100 == 0:
             kickersmodel.save_model()
             random.shuffle(trainCards)

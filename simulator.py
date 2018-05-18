@@ -180,25 +180,25 @@ class Hand:
         elif self.type == "Solo" and self.chain == 1:
             score = 1
         elif self.type == "Pair" and self.chain == 1:
-            score = 2
+            score = 2 #+ 1
         elif self.type == "Trio" and self.chain == 1:
-            score = 4
+            score = 4 #+ 2
         elif self.type == "Solo" and self.chain >= 5:
-            score = 6
+            score = 6 #+ self.chain
         elif self.type == "Pair" and self.chain >= 3:
-            score = 6
+            score = 6 #+ self.chain * 2
         elif self.type == "Trio" and self.chain >= 2:
-            score = 8
+            score = 8 #+ self.chain * 3
         elif self.type == "Four" and self.chain == 1:
-            score = 8
+            score = 8 #+ self.chain * 4
         elif self.type == "Bomb":
-            score = 10
+            score = 10 #+ 10
         elif self.type == "Four" and self.chain == 2:
-            score = 10
+            score = 10 #+ self.chain * 4
         elif self.type == "Rocket":
-            score = 16
+            score = 16 #+ 16
         elif self.type == "Four" and self.chain > 2:
-            score = 20
+            score = 20 #+ self.chain * 4
         return score #/ 100.0
 
 

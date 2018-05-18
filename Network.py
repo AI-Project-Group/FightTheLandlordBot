@@ -6,9 +6,9 @@ from simulator import Hand
 LearningRate = 1e-4
 BatchSize = 256
 KickersBatch = 16
-Gamma = 0.95
+Gamma = 0.96
 MaxEpoch = 1
-TrainKeepProb = 0.75
+TrainKeepProb = 0.8
 
 class Network:
     
@@ -21,7 +21,7 @@ class Network:
     @staticmethod
     def conv_layer(intensor,conWidth,conStride,inUnits,outUnits,name="conv"):
         with tf.name_scope(name):
-            W = tf.Variable(tf.truncated_normal([conWidth, conWidth, inUnits, outUnits], stddev=0.01),name="W")
+            W = tf.Variable(tf.truncated_normal([conWidth, conWidth, inUnits, outUnits], stddev=0.1),name="W")
             b = tf.Variable(tf.zeros([outUnits]),name="b")
             conv = tf.nn.conv2d(intensor, W, strides=[1, conStride, conStride, 1], padding="VALID")
             relu = tf.nn.relu(conv+b)
@@ -34,18 +34,18 @@ class Network:
         return pool
     
     @staticmethod
-    def fc_layer(intensor,inUnits,outUnits,keep_prob,name="fc"):
+    def fc_layer(intensor,inUnits,outUnits,keep_prob,name="fc",mean=0,initstd=0.1):
         with tf.name_scope(name):
-            W = tf.Variable(tf.truncated_normal([inUnits, outUnits], stddev=0.01),name="W")
+            W = tf.Variable(tf.truncated_normal([inUnits, outUnits], mean=mean, stddev=initstd),name="W")
             b = tf.Variable(tf.zeros([outUnits]),name="b")
             relu = tf.nn.relu(tf.matmul(intensor,W)+b)
             dropout = tf.nn.dropout(relu, keep_prob)
         return dropout
     
     @staticmethod
-    def out_layer(intensor,inUnits,outUnits,name="out"):
+    def out_layer(intensor,inUnits,outUnits,name="out",mean=0,initstd=0.1):
         with tf.name_scope(name):
-            W = tf.Variable(tf.truncated_normal([inUnits, outUnits], stddev=0.01),name="W")
+            W = tf.Variable(tf.truncated_normal([inUnits, outUnits], mean=mean, stddev=initstd),name="W")
             b = tf.Variable(tf.zeros([outUnits]),name="b")
             out = tf.matmul(intensor,W)+b
         return out
@@ -64,9 +64,9 @@ class Network:
 
 class PlayModel(Network):
 
-    def __init__(self,modelname,sess,checkpoint_file):
+    def __init__(self,modelname,sess,player,checkpoint_file):
         inUnits = 7*15
-        fcUnits = [inUnits,256,512,1024]
+        fcUnits = [inUnits,256,512,512]
         outUnits = 364
         self.outUnits = outUnits
         self.name = modelname
@@ -80,24 +80,20 @@ class PlayModel(Network):
             for i in range(len(fcUnits)-1):
                 fc_in = self.fc_layer(fc_in, fcUnits[i], fcUnits[i+1], self.keep_prob, name="fc"+str(i))
             
-            self.out = [self.out_layer(fc_in, fcUnits[-1], outUnits, name="out"+str(i)) for i in range(3)]
-            self.y = [tf.nn.softmax(self.out[i]) for i in range(3)]
+            self.out = self.out_layer(fc_in, fcUnits[-1], outUnits, name="out")
+            self.y = tf.nn.softmax(self.out)
             self.y_ = tf.placeholder(tf.float32, [None, outUnits])
             self.rewards = tf.placeholder(tf.float32, [None])
             
-            self.cross_entropy = [tf.nn.softmax_cross_entropy_with_logits(labels=self.y_, logits=self.out[i]) for i in range(3)]
-            self.loss = [tf.reduce_sum(tf.multiply(self.cross_entropy[i], self.rewards)) for i in range(3)]
-            #self.identity = tf.placeholder(tf.float32,[None, 3])
-            #self.loss = tf.reduce_sum(tf.multiply(self.tmploss, self.identity))
-            self.train_step = [tf.train.AdamOptimizer(LearningRate).minimize(self.loss[i]) for i in range(3)]
-            #self.train_step = tf.train.AdamOptimizer(LearningRate).minimize(self.loss)
-            #print(tf.all_variables())
+            self.cross_entropy = tf.nn.softmax_cross_entropy_with_logits(labels=self.y_, logits=self.out)
+            self.loss = tf.reduce_sum(tf.multiply(self.cross_entropy, self.rewards))
+            self.train_step = tf.train.AdamOptimizer(LearningRate).minimize(self.loss)
         
         super(PlayModel, self).__init__(modelname,sess,checkpoint_file)
         #print(tf.all_variables())
-        self.trainBatch = [[],[],[]]
-        self.episodeTemp = [[],[],[]]
-        self.lastWinner = -1
+        self.trainBatch = []
+        self.episodeTemp = []
+        self.player = player
         
         #for var in tf.all_variables():
             #print(var)
@@ -126,7 +122,8 @@ class PlayModel(Network):
         net_input.append(PlayModel.cards2NumArray(lastLastPlay))
         return np.array(net_input).flatten()
     
-    def getDisFromChain(self,chain,baseChain,maxNum):
+    @staticmethod
+    def getDisFromChain(chain,baseChain,maxNum):
         chaindis = chain - baseChain
         num = maxNum
         res = 0
@@ -136,7 +133,8 @@ class PlayModel(Network):
         return res
     
     # change cardPoints to the index of network output
-    def cardPs2idx(self,cardPoints):
+    @staticmethod
+    def cardPs2idx(cardPoints):
         if cardPoints and isinstance(cardPoints[0],list):
             tmphand = cardPoints[1:]
             lenh = len(tmphand)
@@ -157,7 +155,7 @@ class PlayModel(Network):
                 return 1 + hand.primal
             else:
                 idx = 108
-                idx += self.getDisFromChain(hand.chain,5,8)
+                idx += PlayModel.getDisFromChain(hand.chain,5,8)
                 idx += hand.primal
                 return idx
         elif hand.type == "Pair":
@@ -165,7 +163,7 @@ class PlayModel(Network):
                 return 16 + hand.primal
             else:
                 idx = 144
-                idx += self.getDisFromChain(hand.chain,3,10)
+                idx += PlayModel.getDisFromChain(hand.chain,3,10)
                 idx += hand.primal
                 return idx
         elif hand.type == "Trio":
@@ -173,7 +171,7 @@ class PlayModel(Network):
                 return 29 + hand.primal + hand.kickerNum * 13
             else:
                 idx = 196
-                idx += self.getDisFromChain(hand.chain,2,11)
+                idx += PlayModel.getDisFromChain(hand.chain,2,11)
                 return idx + hand.primal + hand.kickerNum * 45
         elif hand.type == "Four":
             if hand.chain == 1:
@@ -191,11 +189,12 @@ class PlayModel(Network):
     def hand2one_hot(self,allhands):
         res = np.zeros(self.outUnits)
         for hand in allhands:
-            idx = self.cardPs2idx(hand)
+            idx = PlayModel.cardPs2idx(hand)
             res[idx] = 1
         return res
-        
-    def getChainFromDis(self,dis,baseChain,maxNum):
+    
+    @staticmethod
+    def getChainFromDis(dis,baseChain,maxNum):
         chain = baseChain
         num = maxNum
         while dis >= num:
@@ -206,7 +205,8 @@ class PlayModel(Network):
     
     # change index of one hot output to cardPoints
     # if possible hand has kickers, the first element will be dict
-    def idx2CardPs(self,idx):
+    @staticmethod
+    def idx2CardPs(idx):
         res = []
         if idx == 0: # Pass
             res = []
@@ -233,39 +233,39 @@ class PlayModel(Network):
         elif idx == 107: # Rocket
             res = [13,14]
         elif idx <= 143: # Solo Chain
-            chain,primal = self.getChainFromDis(idx-108,5,8)
+            chain,primal = PlayModel.getChainFromDis(idx-108,5,8)
             res = list(range(primal,primal+chain))
         elif idx <= 195: # Pair Chain
-            chain,primal = self.getChainFromDis(idx-144,3,10)
+            chain,primal = PlayModel.getChainFromDis(idx-144,3,10)
             res = list(range(primal,primal+chain)) * 2
         elif idx <= 240: # Airplane without wings
-            chain,primal = self.getChainFromDis(idx-196,2,11)
+            chain,primal = PlayModel.getChainFromDis(idx-196,2,11)
             res = list(range(primal,primal+chain)) * 3
         elif idx <= 285: # Airplane with small wings
-            chain,primal = self.getChainFromDis(idx-241,2,11)
+            chain,primal = PlayModel.getChainFromDis(idx-241,2,11)
             res.append({"kickerNum":1,"chain":chain,"type":"Trio"})
             res.extend(list(range(primal,primal+chain)) * 3)
         elif idx <= 330: # Airplane with big wings
-            chain,primal = self.getChainFromDis(idx-286,2,11)
+            chain,primal = PlayModel.getChainFromDis(idx-286,2,11)
             res.append({"kickerNum":2,"chain":chain,"type":"Trio"})
             res.extend(list(range(primal,primal+chain)) * 3)
         elif idx <= 341: # Shuttle without wings
-            chain,primal = self.getChainFromDis(idx-331,2,11)
+            chain,primal = PlayModel.getChainFromDis(idx-331,2,11)
             res = list(range(primal,primal+chain)) * 4
         elif idx <= 352: # Shuttle with small wings
-            chain,primal = self.getChainFromDis(idx-342,2,11)
+            chain,primal = PlayModel.getChainFromDis(idx-342,2,11)
             res.append({"kickerNum":1,"chain":chain,"type":"Four"})
             res.extend(list(range(primal,primal+chain)) * 4)
         elif idx <= 363: # Shuttle with big wings
-            chain,primal = self.getChainFromDis(idx-353,2,11)
+            chain,primal = PlayModel.getChainFromDis(idx-353,2,11)
             res.append({"kickerNum":2,"chain":chain,"type":"Four"})
             res.extend(list(range(primal,primal+chain)) * 4)            
         return res
     
     # get possible actions
-    def getActions(self,netinput,playerID,allonehot):
+    def getAction(self,netinput,playerID,allonehot):
         epsilon = 1e-6
-        output = self.y[playerID].eval(feed_dict={self.x:[netinput], self.keep_prob:1.0})
+        output = self.y.eval(feed_dict={self.x:[netinput], self.keep_prob:1.0})
         output = output.flatten()
         #print(output)
         legalOut = np.multiply(output, allonehot)
@@ -284,46 +284,48 @@ class PlayModel(Network):
         return self.idx2CardPs(np.argmax(allonehot))
     
     # store the train samples
-    def storeSamples(self, netinput, playerID, action, isPass):
-        actidx = self.cardPs2idx(Hand.getCardPoint(action))
-        self.episodeTemp[playerID].append([netinput,actidx,0, isPass])
+    def storeSamples(self, netinput, action, isPass):
+        actidx = PlayModel.cardPs2idx(Hand.getCardPoint(action))
+        hand = Hand(action)
+        self.episodeTemp.append([netinput,actidx, hand.getHandScore()/100.0, isPass])
         #print(self.episodeTemp)
     
     # compute rewards and train
-    def finishEpisode(self, scores):
+    def finishEpisode(self, score):
         
-        turnscores = [[],[],[]]
-        for p in range(3):
-            for tmp in self.episodeTemp[p][::-1]:
-                tmp[2] = scores[p]
-                turnscores[p].append(scores[p])
-                scores[p] *= Gamma
+        #print([d[2] for d in self.episodeTemp])
+        turnscores = []
+        sum = score
+        for tmp in self.episodeTemp[::-1]:
+            #sum += tmp[2]
+            tmp[2] = sum
+            turnscores.append(sum)
+            sum *= Gamma
         
-        #print(self.episodeTemp)
-        nowWinner = 0 if scores[0] > 0 else 1
-        if nowWinner != self.lastWinner:
-            print("Add to Train Batch...")
-            for p in range(3):
-                for data in self.episodeTemp[p]:
-                    if data[3]:
-                        continue
-                    self.trainBatch[p].append(data)
-                    if len(self.trainBatch[p]) == BatchSize:
-                        random.shuffle(self.trainBatch[p])
-                        self.trainModel(p)
-                        self.trainBatch[p] = []
+        #print([d[2] for d in self.episodeTemp])
+        #nowWinner = 0 if scores[0] > 0 else 1
+        #if nowWinner != self.lastWinner:
+        print("Add to Train Batch...")
+        for data in self.episodeTemp:
+            if data[2] == 0 or (data[1] == 0 and not data[3]):
+                continue
+            self.trainBatch.append(data)
+            if len(self.trainBatch) == BatchSize:
+                random.shuffle(self.trainBatch)
+                self.trainModel()
+                self.trainBatch = []
                         
-        self.lastWinner = nowWinner
+        #self.lastWinner = nowWinner
         #print(self.trainBatch)
-        self.episodeTemp = [[],[],[]]
-        for i in range(3):
-            turnscores[i] = turnscores[i][::-1]
+        self.episodeTemp = []
+        #for i in range(3):
+        turnscores = turnscores[::-1]
         return turnscores
         
     # train the model
-    def trainModel(self,player):
-        print("Train for PlayModel and player=%d..." %(player))
-        batch = self.trainBatch[player]
+    def trainModel(self):
+        print("Train for PlayModel and player=%d..." %(self.player))
+        batch = self.trainBatch
         netinput = [d[0] for d in batch]
         actidxs = [d[1] for d in batch]
         rewards = [d[2] for d in batch]
@@ -331,7 +333,7 @@ class PlayModel(Network):
         #for i in range(BatchSize):
             #acts[i][actidxs[i]] = 1
         for i in range(BatchSize):
-            if rewards[i] > 0:
+            if rewards[i] >= 0:
                 acts[i][actidxs[i]] = 1
             elif rewards[i] < 0:
                 rewards[i] = -rewards[i]
@@ -346,16 +348,119 @@ class PlayModel(Network):
                 tmpvar.append(var)
         for var in tmpvar:
             print(self.sess.run(var))'''
-        vals = self.y[player].eval(feed_dict={self.x:netinput,self.keep_prob:1.0})
+        vals = self.y.eval(feed_dict={self.x:netinput,self.keep_prob:1.0})
         print(vals)
         print(np.sum(vals))
         for _ in range(MaxEpoch):
-            self.sess.run(self.train_step[player], feed_dict={self.x:netinput, self.keep_prob:TrainKeepProb, self.y_:acts, self.rewards:rewards})
-        print(self.y[player].eval(feed_dict={self.x:netinput,self.keep_prob:1.0}))
+            self.sess.run(self.train_step, feed_dict={self.x:netinput, self.keep_prob:TrainKeepProb, self.y_:acts, self.rewards:rewards})
+        print(self.y.eval(feed_dict={self.x:netinput,self.keep_prob:1.0}))
         '''for var in tmpvar:
             print(self.sess.run(var))
         print(self.loss[player].eval(feed_dict={self.x:netinput, self.keep_prob:1.0, self.y_:acts, self.rewards:rewards}))'''
 
+class ValueModel(Network):
+    
+    def __init__(self,modelname,sess,player,checkpoint_file):
+        inUnits = 7*15
+        fcUnits = [inUnits,256,512,512]
+        outUnits = 364
+        self.outUnits = outUnits
+        self.name = modelname
+        self.learningRate = 1e-4
+        
+        #self.graph = tf.Graph()
+        with tf.name_scope(modelname):
+            self.x = tf.placeholder(tf.float32, [None, inUnits])
+            #self.keep_prob = tf.placeholder(tf.float32)
+            
+            fc_in = self.x
+            for i in range(len(fcUnits)-1):
+                fc_in = self.fc_layer(fc_in, fcUnits[i], fcUnits[i+1], 1.0, name="fc"+str(i), mean=0.01, initstd=0.01)
+            
+            self.out = self.out_layer(fc_in, fcUnits[-1], outUnits, name="out", mean=0.01, initstd=0.01)
+            self.act = tf.placeholder(tf.float32, [None, outUnits])
+            self.y = tf.reduce_sum(tf.multiply(self.out, self.act), reduction_indices=1)
+            self.y_ = tf.placeholder(tf.float32, [None])
+            
+            self.loss = tf.reduce_mean(tf.square(self.y - self.y_))
+            self.train_step = tf.train.AdamOptimizer(self.learningRate).minimize(self.loss)
+        
+        super(ValueModel, self).__init__(modelname,sess,checkpoint_file)
+        #print(tf.all_variables())
+        self.trainBatch = []
+        self.episodeTemp = []
+        self.player = player
+    
+    # change all possible hands to one hot tensor
+    def hand2one_hot(self,allhands):
+        res = np.zeros(self.outUnits)
+        for hand in allhands:
+            idx = PlayModel.cardPs2idx(hand)
+            res[idx] = 1
+        return res    
+    
+    def getAction(self,netinput,allonehot,epsilon=None):
+        output = self.out.eval(feed_dict={self.x:[netinput]})
+        output = output.flatten()
+        #print(output)
+        legalOut = np.multiply(output, allonehot)
+        #print(legalOut)
+        allidx = [i for i,v in enumerate(allonehot) if v > 0]
+        #print(allidx)
+        randf = random.random()
+        #print(randf)
+        outidx = -1
+        if epsilon is None or randf > epsilon:
+            outidx = np.argmax(legalOut)
+        else:
+            outidx = random.choice(allidx)
+        #print(outidx)
+        return PlayModel.idx2CardPs(outidx)     
+        
+    def storeSamples(self,netinput,action):
+        actidx = PlayModel.cardPs2idx(Hand.getCardPoint(action))
+        hand = Hand(action)
+        self.episodeTemp.append([netinput,actidx,hand.getHandScore()])
+
+    def finishEpisode(self,score):
+        turnscores = []
+        sum = score
+        for tmp in self.episodeTemp[::-1]:
+            sum += tmp[2]
+            tmp[2] = sum
+            turnscores.append(sum)
+            sum *= Gamma
+        
+        #print([d[2] for d in self.episodeTemp])
+        turns = len(self.episodeTemp)
+        print("Add to Train Batch...")
+        for data in self.episodeTemp:
+            self.trainBatch.append(data)
+            if len(self.trainBatch) == BatchSize:
+                random.shuffle(self.trainBatch)
+                self.trainModel()
+                self.trainBatch = []            
+
+        self.episodeTemp = []
+        turnscores = turnscores[::-1]
+        return turnscores                
+
+    def trainModel(self):
+        print("Train for ValueModel and player=%d..." %(self.player))
+        batch = self.trainBatch
+        netinput = [d[0] for d in batch]
+        actidxs = [d[1] for d in batch]
+        scores = [d[2] for d in batch]
+        acts = np.zeros((BatchSize,self.outUnits))
+        for i in range(BatchSize):
+            acts[i][actidxs[i]] = 1
+        #print(actidxs)
+        #print(scores)        
+        
+        #print(self.y.eval(feed_dict={self.x:netinput, self.act:acts}))
+        for _ in range(MaxEpoch):
+            self.sess.run(self.train_step, feed_dict={self.x:netinput, self.act:acts, self.y_:scores})
+        print(self.y.eval(feed_dict={self.x:netinput, self.act:acts}))
         
 class KickersModel(Network):
     
@@ -372,9 +477,9 @@ class KickersModel(Network):
             
             fc_in = self.x
             for i in range(len(fcUnits)-1):
-                fc_in = self.fc_layer(fc_in, fcUnits[i], fcUnits[i+1], self.keep_prob, name="fc"+str(i))
+                fc_in = self.fc_layer(fc_in, fcUnits[i], fcUnits[i+1], self.keep_prob, name="fc"+str(i),initstd=0.01)
             
-            self.out = self.out_layer(fc_in, fcUnits[-1], outUnits, name="out")
+            self.out = self.out_layer(fc_in, fcUnits[-1], outUnits, name="out",initstd=0.01)
             self.y = tf.nn.softmax(self.out)
             self.y_ = tf.placeholder(tf.float32, [None, outUnits])
             self.rewards = tf.placeholder(tf.float32, [None])
@@ -445,9 +550,9 @@ class KickersModel(Network):
         for tmp in self.episodeTemp:
             t = tmp[3]
             p = tmp[1]
-            tmp[3] = turnscores[p][t]
+            tmp[3] = turnscores[p][t] / 100.0
         
-        #print(len(self.episodeTemp))
+        #print([d[3] for d in self.episodeTemp])
         #print(len(self.trainBatch))
         for data in self.episodeTemp:
             if data[3] <= 0:
@@ -469,7 +574,7 @@ class KickersModel(Network):
         acts = np.zeros((KickersBatch,self.outUnits))
         for i in range(KickersBatch):
             acts[i][actidxs[i]] = 1
-        print(actidxs)
+        #print(actidxs)
 
         '''tmpvar = []
         for var in tf.global_variables():
@@ -478,8 +583,8 @@ class KickersModel(Network):
         for var in tmpvar:
             print(self.sess.run(var))  '''      
  
-        vals = self.y.eval(feed_dict={self.x:netinput, self.keep_prob:1.0})
-        print(vals)
+        #vals = self.y.eval(feed_dict={self.x:netinput, self.keep_prob:1.0})
+        #print(vals)
         for _ in range(MaxEpoch):
             self.sess.run(self.train_step, feed_dict={self.x:netinput, self.keep_prob:TrainKeepProb, self.y_:acts, self.rewards:rewards})
         vals = self.y.eval(feed_dict={self.x:netinput, self.keep_prob:1.0})

@@ -4,6 +4,7 @@
 import simulator
 import json
 import random
+from Network import PlayModel
 #from PolicyNetwork import PlayModel
 
 # Fight The Landlord executor
@@ -74,10 +75,10 @@ class FTLBot:
             return self.makeData([])
         
         sim = self.simulator
-        net_input = self.playmodel.ch2input(sim.nowPlayer,sim.myCards,sim.publicCard,sim.history,sim.lastPlay,sim.lastLastPlay)
+        net_input = PlayModel.ch2input(sim.nowPlayer,sim.myCards,sim.publicCard,sim.history,sim.lastPlay,sim.lastLastPlay)
         one_hot_t = self.playmodel.hand2one_hot(possiblePlays)
-        choice = self.playmodel.getActions(net_input,sim.nowPlayer,one_hot_t)
-         
+        choice = self.playmodel.getAction(net_input, one_hot_t, 0.1)
+        #print(choice)
 
         # Add kickers, if first element is dict, the choice must has some kickers
         # @TODO get kickers from kickers model
@@ -100,8 +101,8 @@ class FTLBot:
             #print(self.kickersmodel.episodeTemp)
             choice = tmphand
         cardChoice = simulator.CardInterpreter.selectCardByHand(self.simulator.myCards, choice)
-
-        self.playmodel.storeSamples(net_input,sim.nowPlayer,cardChoice,len(possiblePlays) == 1 and choice == [])
+        
+        self.playmodel.storeSamples(net_input,cardChoice)
 
         # You need to modify the previous part !!
         return self.makeData(cardChoice)
