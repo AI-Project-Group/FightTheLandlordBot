@@ -11,6 +11,7 @@ KickersBatch = 16
 Gamma = 0.98
 MaxEpoch = 1
 TrainKeepProb = 0.8
+BaseScore = 200
 
 class Network:
     
@@ -357,7 +358,7 @@ class ValueModel(Network):
     
     def __init__(self,modelname,sess,player,checkpoint_file):
         inUnits = 7*15
-        fcUnits = [inUnits,256,512,512]
+        fcUnits = [inUnits,512,512,512]
         outUnits = 364
         self.inUnits = inUnits
         self.outUnits = outUnits
@@ -371,9 +372,9 @@ class ValueModel(Network):
             
             fc_in = self.x
             for i in range(len(fcUnits)-1):
-                fc_in = self.fc_layer(fc_in, fcUnits[i], fcUnits[i+1], 1.0, name="fc"+str(i), mean=0.01, initstd=0.01)
+                fc_in = self.fc_layer(fc_in, fcUnits[i], fcUnits[i+1], 1.0, name="fc"+str(i), initstd=0.1)
             
-            self.out = self.out_layer(fc_in, fcUnits[-1], outUnits, name="out", mean=0.01, initstd=0.01)
+            self.out = self.out_layer(fc_in, fcUnits[-1], outUnits, name="out",  initstd=0.1)
             self.act = tf.placeholder(tf.float32, [None, outUnits])
             self.y = tf.reduce_sum(tf.multiply(self.out, self.act), reduction_indices=1)
             self.y_ = tf.placeholder(tf.float32, [None])
@@ -397,7 +398,7 @@ class ValueModel(Network):
     
     def getAction(self,netinput,allonehot,epsilon=None):
         output = self.out.eval(feed_dict={self.x:[netinput]})
-        output = output.flatten()
+        output = output.flatten() + BaseScore
         #print(output)
         legalOut = np.multiply(output, allonehot)
         #print(legalOut)
@@ -408,7 +409,7 @@ class ValueModel(Network):
             legalOut -= (minval-1)
             legalOut = np.multiply(legalOut,allonehot)
             #print(legalOut)
-        allidx = [i for i,v in enumerate(allonehot) if v > 0]
+        allidx = [i for i,v in enumerate(allonehot) if v > 1e-6]
         #print(allidx)
         randf = random.random()
         #print(randf)
@@ -451,7 +452,7 @@ class ValueModel(Network):
         turnscores = []
         for i in range(nlen):
             turnscores.append(score)
-            score *= Gamma
+            score *= 1
         turnscores = turnscores[::-1]
         #print(turnscores)
 
@@ -576,7 +577,7 @@ class KickersModel(Network):
         for tmp in self.episodeTemp:
             t = tmp[3]
             p = tmp[1]
-            tmp[3] = turnscores[p][t] / 100.0
+            tmp[3] = (turnscores[p][t]+BaseScore) / (2*BaseScore)
         
         #print([d[3] for d in self.episodeTemp])
         #print(len(self.trainBatch))

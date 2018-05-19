@@ -9,6 +9,7 @@ KickersBatch = 16
 Gamma = 0.96
 MaxEpoch = 1
 TrainKeepProb = 0.8
+BaseScore = 200
 
 class Network:
     
@@ -362,7 +363,7 @@ class ValueModel(Network):
     
     def __init__(self,modelname,sess,player,checkpoint_file):
         inUnits = 7*15
-        fcUnits = [inUnits,256,512,512]
+        fcUnits = [inUnits,512,512,512]
         outUnits = 364
         self.outUnits = outUnits
         self.name = modelname
@@ -401,11 +402,11 @@ class ValueModel(Network):
     
     def getAction(self,netinput,allonehot,epsilon=None):
         output = self.out.eval(feed_dict={self.x:[netinput]})
-        output = output.flatten()
+        output = output.flatten() + BaseScore
         #print(output)
         legalOut = np.multiply(output, allonehot)
         #print(legalOut)
-        allidx = [i for i,v in enumerate(allonehot) if v > 0]
+        allidx = [i for i,v in enumerate(allonehot) if v > 1e-6]
         #print(allidx)
         randf = random.random()
         #print(randf)

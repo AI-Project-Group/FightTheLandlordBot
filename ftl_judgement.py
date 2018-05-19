@@ -116,14 +116,12 @@ class FTLJudgement:
     
     def getFinalScore(self,winner,score):
         farmerScore = score[1] + score[2]
+        dis = score[0] - farmerScore / 2.0
         if winner == 0:
-            score[1] = score[2] = farmerScore / 2.0
-            score[0] = 100 - score[1] + score[0]
-            #score[1] = score[2] = 0
+            score[0] = 100 + dis
         else:
-            score[0] /= 1.0
-            score[1] = score[2] = 100 - score[0] + farmerScore / 2.0
-            #score[0] = 0
+            score[0] = -100 + dis
+        score[1] = score[2] = -score[0]
         return score      
 
     # Report the result
@@ -139,8 +137,6 @@ if __name__ == "__main__":
     #playmodel = [PlayModel("play"+str(i),sess,i,"data/FTL/test.ckpt") for i in range(3)]
     kickersmodel = KickersModel("kick",sess,"data/FTL/test.ckpt")
     tf.global_variables_initializer().run()
-    #for i in range(3):
-        #valuemodel[i].load_model()
     kickersmodel.load_model()
     episode = 1
     while True:
