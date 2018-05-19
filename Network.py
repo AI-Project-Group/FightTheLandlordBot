@@ -443,17 +443,20 @@ class ValueModel(Network):
         if len(self.trainBatch) == BufferSize:
             self.trainModel()
         
-        '''netinput = [d[0] for d in self.episodeTemp]
+        netinput = [d[0] for d in self.episodeTemp]
         actidxs = [d[1] for d in self.episodeTemp]
         acts = np.zeros((nlen,self.outUnits))
         for i in range(nlen):
             acts[i][actidxs[i]] = 1
-        res = self.y.eval(feed_dict={self.x:netinput, self.act:acts})'''
-        turnscores = []
-        for i in range(nlen):
+        res = self.y.eval(feed_dict={self.x:netinput, self.act:acts})
+        turnscores = res.flatten().tolist()
+        #print(turnscores)
+        turnscores = turnscores[1:]
+        turnscores.append(score)
+        '''for i in range(nlen):
             turnscores.append(score)
             score *= 1
-        turnscores = turnscores[::-1]
+        turnscores = turnscores[::-1]'''
         #print(turnscores)
 
         self.episodeTemp = []
