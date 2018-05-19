@@ -2,11 +2,13 @@ import random
 import numpy as np
 import tensorflow as tf
 from simulator import Hand
+from collections import deque
 
 LearningRate = 1e-4
 BatchSize = 256
+BufferSize = 6400
 KickersBatch = 16
-Gamma = 0.96
+Gamma = 0.98
 MaxEpoch = 1
 TrainKeepProb = 0.8
 
@@ -70,6 +72,7 @@ class PlayModel(Network):
         outUnits = 364
         self.outUnits = outUnits
         self.name = modelname
+        self.LearningRate = 1e-4
         
         #self.graph = tf.Graph()
         with tf.name_scope(modelname):
@@ -87,7 +90,7 @@ class PlayModel(Network):
             
             self.cross_entropy = tf.nn.softmax_cross_entropy_with_logits(labels=self.y_, logits=self.out)
             self.loss = tf.reduce_sum(tf.multiply(self.cross_entropy, self.rewards))
-            self.train_step = tf.train.AdamOptimizer(LearningRate).minimize(self.loss)
+            self.train_step = tf.train.AdamOptimizer(self.LearningRate).minimize(self.loss)
         
         super(PlayModel, self).__init__(modelname,sess,checkpoint_file)
         #print(tf.all_variables())
@@ -120,7 +123,7 @@ class PlayModel(Network):
             player = (player - 1) % 3
         net_input.append(PlayModel.cards2NumArray(lastPlay))
         net_input.append(PlayModel.cards2NumArray(lastLastPlay))
-        return np.array(net_input).flatten()
+        return np.array(net_input).flatten() + 1
     
     @staticmethod
     def getDisFromChain(chain,baseChain,maxNum):
@@ -263,8 +266,7 @@ class PlayModel(Network):
         return res
     
     # get possible actions
-    def getAction(self,netinput,playerID,allonehot):
-        epsilon = 1e-6
+    def getAction(self,netinput,allonehot):
         output = self.y.eval(feed_dict={self.x:[netinput], self.keep_prob:1.0})
         output = output.flatten()
         #print(output)
@@ -276,7 +278,7 @@ class PlayModel(Network):
         sum = 0
         #print(randf)
         for i in range(len(legalOut)):
-            if abs(allonehot[i] - 1) < epsilon:
+            if abs(allonehot[i] - 1) < 1e-6:
                 sum += legalOut[i]
                 #print(sum)
                 if randf < sum:
@@ -286,28 +288,23 @@ class PlayModel(Network):
     # store the train samples
     def storeSamples(self, netinput, action, isPass):
         actidx = PlayModel.cardPs2idx(Hand.getCardPoint(action))
-        hand = Hand(action)
-        self.episodeTemp.append([netinput,actidx, hand.getHandScore()/100.0, isPass])
+        #hand = Hand(action)
+        self.episodeTemp.append([netinput,actidx,0, isPass])
         #print(self.episodeTemp)
     
     # compute rewards and train
-    def finishEpisode(self, score):
+    def finishEpisode(self, turnscores, istrain=False):
         
         #print([d[2] for d in self.episodeTemp])
-        turnscores = []
-        sum = score
-        for tmp in self.episodeTemp[::-1]:
-            #sum += tmp[2]
-            tmp[2] = sum
-            turnscores.append(sum)
-            sum *= Gamma
+        for i in range(len(self.episodeTemp)):
+            self.episodeTemp[i][2] = turnscores[i] / 100.0
         
         #print([d[2] for d in self.episodeTemp])
         #nowWinner = 0 if scores[0] > 0 else 1
         #if nowWinner != self.lastWinner:
-        print("Add to Train Batch...")
+        #print("Add to Train Batch...")
         for data in self.episodeTemp:
-            if data[2] == 0 or (data[1] == 0 and not data[3]):
+            if data[2] <= 0 or data[3] or not istrain:
                 continue
             self.trainBatch.append(data)
             if len(self.trainBatch) == BatchSize:
@@ -319,8 +316,6 @@ class PlayModel(Network):
         #print(self.trainBatch)
         self.episodeTemp = []
         #for i in range(3):
-        turnscores = turnscores[::-1]
-        return turnscores
         
     # train the model
     def trainModel(self):
@@ -330,17 +325,17 @@ class PlayModel(Network):
         actidxs = [d[1] for d in batch]
         rewards = [d[2] for d in batch]
         acts = np.zeros((BatchSize,self.outUnits))
-        #for i in range(BatchSize):
-            #acts[i][actidxs[i]] = 1
         for i in range(BatchSize):
-            if rewards[i] >= 0:
-                acts[i][actidxs[i]] = 1
-            elif rewards[i] < 0:
-                rewards[i] = -rewards[i]
-                randi = random.randint(0,self.outUnits-1)
-                acts[i][randi] = 1
-        print(actidxs)
-        print(rewards)        
+            acts[i][actidxs[i]] = 1
+        #for i in range(BatchSize):
+            #if rewards[i] >= 0:
+             #   acts[i][actidxs[i]] = 1
+            #elif rewards[i] < 0:
+                #rewards[i] = -rewards[i]
+                #randi = random.randint(0,self.outUnits-1)
+                #acts[i][randi] = 1
+        #print(actidxs)
+        #print(rewards)        
         
         '''tmpvar = []
         for var in tf.global_variables():
@@ -348,9 +343,9 @@ class PlayModel(Network):
                 tmpvar.append(var)
         for var in tmpvar:
             print(self.sess.run(var))'''
-        vals = self.y.eval(feed_dict={self.x:netinput,self.keep_prob:1.0})
-        print(vals)
-        print(np.sum(vals))
+        #vals = self.y.eval(feed_dict={self.x:netinput,self.keep_prob:1.0})
+        #print(vals)
+        #print(np.sum(vals))
         for _ in range(MaxEpoch):
             self.sess.run(self.train_step, feed_dict={self.x:netinput, self.keep_prob:TrainKeepProb, self.y_:acts, self.rewards:rewards})
         print(self.y.eval(feed_dict={self.x:netinput,self.keep_prob:1.0}))
@@ -364,6 +359,7 @@ class ValueModel(Network):
         inUnits = 7*15
         fcUnits = [inUnits,256,512,512]
         outUnits = 364
+        self.inUnits = inUnits
         self.outUnits = outUnits
         self.name = modelname
         self.learningRate = 1e-4
@@ -387,7 +383,7 @@ class ValueModel(Network):
         
         super(ValueModel, self).__init__(modelname,sess,checkpoint_file)
         #print(tf.all_variables())
-        self.trainBatch = []
+        self.trainBatch = deque()
         self.episodeTemp = []
         self.player = player
     
@@ -405,6 +401,13 @@ class ValueModel(Network):
         #print(output)
         legalOut = np.multiply(output, allonehot)
         #print(legalOut)
+        minval = np.min(legalOut)
+        if minval < 0:
+            print("Minus Value!!!")
+            print(legalOut)
+            legalOut -= (minval-1)
+            legalOut = np.multiply(legalOut,allonehot)
+            #print(legalOut)
         allidx = [i for i,v in enumerate(allonehot) if v > 0]
         #print(allidx)
         randf = random.random()
@@ -417,56 +420,79 @@ class ValueModel(Network):
         #print(outidx)
         return PlayModel.idx2CardPs(outidx)     
         
-    def storeSamples(self,netinput,action):
+    def storeSamples(self,netinput,action,allonehot):
         actidx = PlayModel.cardPs2idx(Hand.getCardPoint(action))
         hand = Hand(action)
-        self.episodeTemp.append([netinput,actidx,hand.getHandScore()])
+        self.episodeTemp.append([netinput,actidx,hand.getHandScore(),allonehot])
 
-    def finishEpisode(self,score):
-        turnscores = []
-        sum = score
-        for tmp in self.episodeTemp[::-1]:
-            sum += tmp[2]
-            tmp[2] = sum
-            turnscores.append(sum)
-            sum *= Gamma
+    def finishEpisode(self,score):      
+        #print("Player %d add to the train batch"%(self.player))
+        nlen = len(self.episodeTemp)
+        for i in range(nlen,0,-1):
+            data = self.episodeTemp[i-1]
+            if i == nlen:
+                self.trainBatch.append((data[0],data[1],np.zeros(self.inUnits),np.zeros(self.outUnits),score))
+            else:
+                ndata = self.episodeTemp[i]
+                self.trainBatch.append((data[0],data[1],ndata[0],ndata[3],0))
         
-        #print([d[2] for d in self.episodeTemp])
-        turns = len(self.episodeTemp)
-        print("Add to Train Batch...")
-        for data in self.episodeTemp:
-            self.trainBatch.append(data)
-            if len(self.trainBatch) == BatchSize:
-                random.shuffle(self.trainBatch)
-                self.trainModel()
-                self.trainBatch = []            
+        #print(self.trainBatch)
+        while len(self.trainBatch) > BufferSize:
+            self.trainBatch.popleft()
+        if len(self.trainBatch) == BufferSize:
+            self.trainModel()
+        
+        '''netinput = [d[0] for d in self.episodeTemp]
+        actidxs = [d[1] for d in self.episodeTemp]
+        acts = np.zeros((nlen,self.outUnits))
+        for i in range(nlen):
+            acts[i][actidxs[i]] = 1
+        res = self.y.eval(feed_dict={self.x:netinput, self.act:acts})'''
+        turnscores = []
+        for i in range(nlen):
+            turnscores.append(score)
+            score *= Gamma
+        turnscores = turnscores[::-1]
+        #print(turnscores)
 
         self.episodeTemp = []
-        turnscores = turnscores[::-1]
         return turnscores                
 
     def trainModel(self):
         print("Train for ValueModel and player=%d..." %(self.player))
-        batch = self.trainBatch
+        batch = random.sample(self.trainBatch, BatchSize)
         netinput = [d[0] for d in batch]
         actidxs = [d[1] for d in batch]
-        scores = [d[2] for d in batch]
+        nextinput = [d[2] for d in batch]
         acts = np.zeros((BatchSize,self.outUnits))
         for i in range(BatchSize):
             acts[i][actidxs[i]] = 1
-        #print(actidxs)
-        #print(scores)        
+            
+        nextscores = self.out.eval(feed_dict={self.x:nextinput})
+        #print(nextscores)
+        tvals = []
+        for i in range(BatchSize):
+            if abs(batch[i][4] - 0) < 1e-6:
+                nscores = np.multiply(nextscores[i],batch[i][3])
+                tscore = np.max(nscores)
+                if tscore < 0:
+                    tscore = 1
+                tvals.append(tscore * Gamma)
+            else:
+                tvals.append(batch[i][4])
+        #print(tvals)
+        #print(actidxs)       
         
         #print(self.y.eval(feed_dict={self.x:netinput, self.act:acts}))
         for _ in range(MaxEpoch):
-            self.sess.run(self.train_step, feed_dict={self.x:netinput, self.act:acts, self.y_:scores})
-        print(self.y.eval(feed_dict={self.x:netinput, self.act:acts}))
+            self.sess.run(self.train_step, feed_dict={self.x:netinput, self.act:acts, self.y_:tvals})
+        #print(self.y.eval(feed_dict={self.x:netinput, self.act:acts}))
         
 class KickersModel(Network):
     
     def __init__(self,modelname,sess,checkpoint_file):
         inUnits = 8*15
-        fcUnits = [inUnits,512,1024]
+        fcUnits = [inUnits,512,512]
         outUnits = 28
         self.outUnits = outUnits
         self.name = modelname

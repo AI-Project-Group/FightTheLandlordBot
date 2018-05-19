@@ -44,7 +44,7 @@ class FTLJudgement:
             print("Turn %d: %s"%(self.nowTurn, text))
 
     # simulate the game process
-    def work(self,playmodel,kickersmodel):
+    def work(self,playmodel,kickersmodel,nowep):
         isGameFinished = False
         score = [0,0,0]
         while not isGameFinished: # Looping
@@ -107,7 +107,8 @@ class FTLJudgement:
         # @TODO Add Model Training        
         for playerID in range(3): # discard cards to table
             self.cardTable.extend(self.nowCardsPlayer[playerID])
-            turnscores[playerID] = playmodel[playerID].finishEpisode(score[playerID])
+            turnscores[playerID] = valuemodel[playerID].finishEpisode(score[playerID])
+            #playmodel[playerID].finishEpisode(turnscores[playerID], nowep>1000)
         #print(turnscores)
         kickersmodel.finishEpisode(turnscores)
 
@@ -135,19 +136,17 @@ class FTLJudgement:
 if __name__ == "__main__":
     sess = tf.InteractiveSession()
     valuemodel = [ValueModel("val"+str(i),sess,i,"data/FTL/test.ckpt") for i in range(3)]
+    #playmodel = [PlayModel("play"+str(i),sess,i,"data/FTL/test.ckpt") for i in range(3)]
     kickersmodel = KickersModel("kick",sess,"data/FTL/test.ckpt")
     tf.global_variables_initializer().run()
-    for i in range(3):
-        valuemodel[i].load_model()
+    #for i in range(3):
+        #valuemodel[i].load_model()
     kickersmodel.load_model()
     episode = 1
-    trainCards = list(range(0, 54))
-    random.shuffle(trainCards)
     while True:
         print("Train Episode: %d"%(episode))
         ftlJudge = FTLJudgement([], False)
-        ftlJudge.work(valuemodel,kickersmodel)
-        if episode % 100 == 0:
+        ftlJudge.work(valuemodel,kickersmodel,episode)
+        if episode % 1000 == 0:
             kickersmodel.save_model()
-            random.shuffle(trainCards)
         episode += 1

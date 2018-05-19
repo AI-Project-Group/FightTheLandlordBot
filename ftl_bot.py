@@ -11,9 +11,10 @@ from Network import PlayModel
 
 # Initialization using the JSON input
 class FTLBot:
-    def __init__(self, playmodel, kickersmodel, data, dataType = "Judge"):
+    def __init__(self, playmodel,kickersmodel, data, dataType = "Judge"):
         self.dataType = dataType
         self.playmodel = playmodel
+        #self.valuemodel = valuemodel
         self.kickersmodel = kickersmodel
         if dataType == "JSON": # JSON req
             rawInput = json.loads(data)
@@ -77,7 +78,7 @@ class FTLBot:
         sim = self.simulator
         net_input = PlayModel.ch2input(sim.nowPlayer,sim.myCards,sim.publicCard,sim.history,sim.lastPlay,sim.lastLastPlay)
         one_hot_t = self.playmodel.hand2one_hot(possiblePlays)
-        choice = self.playmodel.getAction(net_input, one_hot_t, 0.1)
+        choice = self.playmodel.getAction(net_input, one_hot_t, 0.9)
         #print(choice)
 
         # Add kickers, if first element is dict, the choice must has some kickers
@@ -102,7 +103,8 @@ class FTLBot:
             choice = tmphand
         cardChoice = simulator.CardInterpreter.selectCardByHand(self.simulator.myCards, choice)
         
-        self.playmodel.storeSamples(net_input,cardChoice)
+        #self.playmodel.storeSamples(net_input,cardChoice, len(possiblePlays) == 1 and choice == [])
+        self.playmodel.storeSamples(net_input,cardChoice,one_hot_t)
 
         # You need to modify the previous part !!
         return self.makeData(cardChoice)

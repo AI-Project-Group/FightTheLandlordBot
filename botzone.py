@@ -362,7 +362,7 @@ class ValueModel(Network):
     
     def __init__(self,modelname,sess,player,checkpoint_file):
         inUnits = 7*15
-        fcUnits = [inUnits,256,512,512]
+        fcUnits = [inUnits,512,512]
         outUnits = 364
         self.outUnits = outUnits
         self.name = modelname
@@ -1059,12 +1059,12 @@ class FTLBot:
                 kickers_onehot[kidx] = 0
             for k in kickers:
                 tmphand.extend(k)
-                self.kickersmodel.storeSamples(kickers_input,sim.nowPlayer,k,sim.nowTurn)
+                #self.kickersmodel.storeSamples(kickers_input,sim.nowPlayer,k,sim.nowTurn)
             #print(self.kickersmodel.episodeTemp)
             choice = tmphand
         cardChoice = CardInterpreter.selectCardByHand(self.simulator.myCards, choice)
         
-        self.playmodel.storeSamples(net_input,cardChoice)
+        #self.playmodel.storeSamples(net_input,cardChoice)
 
         # You need to modify the previous part !!
         return self.makeData(cardChoice,val)
