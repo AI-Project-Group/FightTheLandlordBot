@@ -120,7 +120,7 @@ class PlayModel(Network):
             player = (player - 1) % 3
         net_input.append(PlayModel.cards2NumArray(lastPlay))
         net_input.append(PlayModel.cards2NumArray(lastLastPlay))
-        return np.array(net_input).flatten()
+        return np.array(net_input).flatten() + 1
     
     @staticmethod
     def getDisFromChain(chain,baseChain,maxNum):
@@ -362,7 +362,7 @@ class ValueModel(Network):
     
     def __init__(self,modelname,sess,player,checkpoint_file):
         inUnits = 7*15
-        fcUnits = [inUnits,512,512]
+        fcUnits = [inUnits,256,512,512]
         outUnits = 364
         self.outUnits = outUnits
         self.name = modelname
@@ -404,7 +404,7 @@ class ValueModel(Network):
         output = output.flatten()
         #print(output)
         legalOut = np.multiply(output, allonehot)
-        print(legalOut)
+        #print(legalOut)
         allidx = [i for i,v in enumerate(allonehot) if v > 0]
         #print(allidx)
         randf = random.random()
@@ -466,7 +466,7 @@ class KickersModel(Network):
     
     def __init__(self,modelname,sess,checkpoint_file):
         inUnits = 8*15
-        fcUnits = [inUnits,512,1024]
+        fcUnits = [inUnits,512,512]
         outUnits = 28
         self.outUnits = outUnits
         self.name = modelname
@@ -1038,6 +1038,7 @@ class FTLBot:
         
         sim = self.simulator
         net_input = PlayModel.ch2input(sim.nowPlayer,sim.myCards,sim.publicCard,sim.history,sim.lastPlay,sim.lastLastPlay)
+        #print(net_input)
         one_hot_t = self.playmodel.hand2one_hot(possiblePlays)
         choice,val = self.playmodel.getAction(net_input, one_hot_t)
         #print(choice)
