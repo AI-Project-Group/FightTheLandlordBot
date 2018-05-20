@@ -406,6 +406,10 @@ class ValueModel(Network):
         #print(output)
         legalOut = np.multiply(output, allonehot)
         #print(legalOut)
+        minval = np.min(legalOut)
+        if minval < 0:
+            legalOut -= (minval-1)
+            legalOut = np.multiply(legalOut,allonehot)
         allidx = [i for i,v in enumerate(allonehot) if v > 1e-6]
         #print(allidx)
         randf = random.random()
@@ -1079,6 +1083,7 @@ if __name__ == "__main__":
     kickersmodel.load_model()
     player = FTLBot(playmodel[0], kickersmodel, input(), "JSON")
     id = player.simulator.nowPlayer
+    #print(id)
     player.playmodel = playmodel[id]
     res = player.makeDecision()
     print(res)
