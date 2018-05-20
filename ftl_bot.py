@@ -78,7 +78,7 @@ class FTLBot:
         sim = self.simulator
         net_input = PlayModel.ch2input(sim.nowPlayer,sim.myCards,sim.publicCard,sim.history,sim.lastPlay,sim.lastLastPlay)
         one_hot_t = self.playmodel.hand2one_hot(possiblePlays)
-        choice = self.playmodel.getAction(net_input, one_hot_t, 0.5)
+        choice = self.playmodel.probAction(net_input, one_hot_t)
         #print(choice)
 
         # Add kickers, if first element is dict, the choice must has some kickers

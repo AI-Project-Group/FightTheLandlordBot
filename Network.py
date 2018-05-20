@@ -419,7 +419,40 @@ class ValueModel(Network):
         else:
             outidx = random.choice(allidx)
         #print(outidx)
-        return PlayModel.idx2CardPs(outidx)     
+        return PlayModel.idx2CardPs(outidx)
+
+    def probAction(self,netinput,allonehot):
+        output = self.out.eval(feed_dict={self.x:[netinput]})
+        output = output.flatten() + BaseScore
+        #print(output)
+        legalOut = np.multiply(output, allonehot)
+        #print(legalOut)
+        minval = np.min(legalOut)
+        if minval < 0:
+            print("Minus Value!!!")
+            print(legalOut)
+            legalOut -= (minval-1)
+            legalOut = np.multiply(legalOut,allonehot)
+        vals = [v for v in legalOut if v > 1e-6]
+        actidxs = [i for i,v in enumerate(legalOut) if v > 1e-6]
+        #print(actidxs)
+        minval = np.min(vals)
+        vals -= minval
+        #print(vals)
+        probs = np.exp(vals)/np.sum(np.exp(vals),axis=0)
+        #print(probs)
+        
+        randf = random.random()
+        #print(randf)
+        sum = 0
+        outidx = np.argmax(legalOut)
+        for i in range(len(probs)):
+            sum += probs[i]
+            if randf < sum:
+                outidx = actidxs[i]
+                break
+        #print(outidx)
+        return PlayModel.idx2CardPs(outidx)
         
     def storeSamples(self,netinput,action,allonehot):
         actidx = PlayModel.cardPs2idx(Hand.getCardPoint(action))
