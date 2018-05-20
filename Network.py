@@ -436,6 +436,8 @@ class ValueModel(Network):
         vals = [v for v in legalOut if v > 1e-6]
         actidxs = [i for i,v in enumerate(legalOut) if v > 1e-6]
         #print(actidxs)
+        if len(vals) == 0:
+            return PlayModel.idx2CardPs(np.argmax(legalOut))
         minval = np.min(vals)
         vals -= minval
         #print(vals)
@@ -511,9 +513,8 @@ class ValueModel(Network):
         for i in range(BatchSize):
             if abs(batch[i][4] - 0) < 1e-6:
                 nscores = np.multiply(nextscores[i],batch[i][3])
+                nscores = [s for s in nscores if abs(s) > 1e-6]
                 tscore = np.max(nscores)
-                if tscore < 0:
-                    tscore = 1
                 tvals.append(tscore * Gamma)
             else:
                 tvals.append(batch[i][4])
