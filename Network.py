@@ -59,7 +59,7 @@ class Network:
 
     def load_model(self):
         print("Restore checkpoint...")
-        try:
+        try:           
             self.saver.restore(self.sess, self.checkpoint_file)
         except Exception as err:
             print("Fail to restore...")
@@ -69,7 +69,7 @@ class PlayModel(Network):
 
     def __init__(self,modelname,sess,player,checkpoint_file):
         inUnits = 7*15
-        fcUnits = [inUnits,256,512,512]
+        fcUnits = [inUnits,512,512,512]
         outUnits = 364
         self.outUnits = outUnits
         self.name = modelname
@@ -82,9 +82,9 @@ class PlayModel(Network):
             
             fc_in = self.x
             for i in range(len(fcUnits)-1):
-                fc_in = self.fc_layer(fc_in, fcUnits[i], fcUnits[i+1], self.keep_prob, name="fc"+str(i))
+                fc_in = self.fc_layer(fc_in, fcUnits[i], fcUnits[i+1], self.keep_prob, name="fc"+str(i),initstd=0.01)
             
-            self.out = self.out_layer(fc_in, fcUnits[-1], outUnits, name="out")
+            self.out = self.out_layer(fc_in, fcUnits[-1], outUnits, name="out",initstd=0.01)
             self.y = tf.nn.softmax(self.out)
             self.y_ = tf.placeholder(tf.float32, [None, outUnits])
             self.rewards = tf.placeholder(tf.float32, [None])
@@ -283,28 +283,30 @@ class PlayModel(Network):
                 sum += legalOut[i]
                 #print(sum)
                 if randf < sum:
-                    return self.idx2CardPs(i)
-        return self.idx2CardPs(np.argmax(allonehot))
+                    return self.idx2CardPs(i), i
+        outidx = np.argmax(allonehot)                    
+        return self.idx2CardPs(outidx), outidx
     
     # store the train samples
-    def storeSamples(self, netinput, action, isPass):
+    def storeSamples(self, netinput, action, actscore, isPass):
         actidx = PlayModel.cardPs2idx(Hand.getCardPoint(action))
-        #hand = Hand(action)
-        self.episodeTemp.append([netinput,actidx,0, isPass])
-        #print(self.episodeTemp)
+        self.episodeTemp.append([netinput,actidx, actscore, isPass])
     
     # compute rewards and train
     def finishEpisode(self, turnscores, istrain=False):
         
+        lenh = len(self.episodeTemp)
         #print([d[2] for d in self.episodeTemp])
-        for i in range(len(self.episodeTemp)):
-            self.episodeTemp[i][2] = turnscores[i] / 100.0
+        for i in range(lenh):
+            self.episodeTemp[i][2] = (turnscores[i]+BaseScore) / (2*BaseScore)
         
         #print([d[2] for d in self.episodeTemp])
-        #nowWinner = 0 if scores[0] > 0 else 1
-        #if nowWinner != self.lastWinner:
+        #tmpinputs = [d[0] for d in self.episodeTemp]
+        #nowprobs = self.y.eval(feed_dict={self.x:tmpinputs,self.keep_prob:1.0})
+        #print(nowprobs)
         #print("Add to Train Batch...")
-        for data in self.episodeTemp:
+        for i in range(lenh):
+            data = self.episodeTemp[i]
             if data[2] <= 0 or data[3] or not istrain:
                 continue
             self.trainBatch.append(data)
@@ -324,7 +326,7 @@ class PlayModel(Network):
         batch = self.trainBatch
         netinput = [d[0] for d in batch]
         actidxs = [d[1] for d in batch]
-        rewards = [d[2] for d in batch]
+        rewards = [d[2] for d in batch]#np.ones(BatchSize)
         acts = np.zeros((BatchSize,self.outUnits))
         for i in range(BatchSize):
             acts[i][actidxs[i]] = 1
@@ -335,8 +337,9 @@ class PlayModel(Network):
                 #rewards[i] = -rewards[i]
                 #randi = random.randint(0,self.outUnits-1)
                 #acts[i][randi] = 1
-        #print(actidxs)
-        #print(rewards)        
+        print(actidxs)
+        #print(netinput)
+        print(rewards)        
         
         '''tmpvar = []
         for var in tf.global_variables():
@@ -394,7 +397,25 @@ class ValueModel(Network):
         for hand in allhands:
             idx = PlayModel.cardPs2idx(hand)
             res[idx] = 1
-        return res    
+        return res
+    
+    def getActProb(self,netinput,allonehot,actidx):
+        output = self.out.eval(feed_dict={self.x:[netinput]})
+        output = output.flatten() + BaseScore
+        #print(output)
+        legalVal = np.multiply(output, allonehot)
+        #print(legalVal)
+        vals = [v for v in legalVal if v > 1e-6]
+        #print(len(vals))
+        if len(vals) <= 1:
+            return 1.0
+        minval = np.min(vals)
+        actval = legalVal[actidx] - minval
+        vals = vals - minval
+        if actidx == 0 and np.exp(actval)/np.sum(np.exp(vals),axis=0) > 0.9:
+            print(vals)
+            print(np.exp(vals)/np.sum(np.exp(vals),axis=0))
+        return np.exp(actval)/np.sum(np.exp(vals),axis=0)
     
     def getAction(self,netinput,allonehot,epsilon=None):
         output = self.out.eval(feed_dict={self.x:[netinput]})

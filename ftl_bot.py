@@ -11,10 +11,10 @@ from Network import PlayModel
 
 # Initialization using the JSON input
 class FTLBot:
-    def __init__(self, playmodel,kickersmodel, data, dataType = "Judge"):
+    def __init__(self, playmodel, valuemodel, kickersmodel, data, dataType = "Judge"):
         self.dataType = dataType
         self.playmodel = playmodel
-        #self.valuemodel = valuemodel
+        self.valuemodel = valuemodel
         self.kickersmodel = kickersmodel
         if dataType == "JSON": # JSON req
             rawInput = json.loads(data)
@@ -68,7 +68,7 @@ class FTLBot:
     def makeDecision(self):
         lastHand = simulator.Hand(self.simulator.cardsToFollow)   
         possiblePlays = simulator.CardInterpreter.splitCard(self.simulator.myCards, lastHand)
-        #print(possiblePlays)
+        #print(len(possiblePlays))
 
         # @TODO You need to modify the following part !!
         # A little messed up ...
@@ -78,7 +78,9 @@ class FTLBot:
         sim = self.simulator
         net_input = PlayModel.ch2input(sim.nowPlayer,sim.myCards,sim.publicCard,sim.history,sim.lastPlay,sim.lastLastPlay)
         one_hot_t = self.playmodel.hand2one_hot(possiblePlays)
-        choice = self.playmodel.getAction(net_input, one_hot_t, 0.5)
+        choice = self.valuemodel.getAction(net_input, one_hot_t, 0.1)
+        #actscore = self.valuemodel.getActProb(net_input,one_hot_t,actidx)
+        
         #print(choice)
 
         # Add kickers, if first element is dict, the choice must has some kickers
@@ -103,8 +105,9 @@ class FTLBot:
             choice = tmphand
         cardChoice = simulator.CardInterpreter.selectCardByHand(self.simulator.myCards, choice)
         
-        #self.playmodel.storeSamples(net_input,cardChoice, len(possiblePlays) == 1 and choice == [])
-        self.playmodel.storeSamples(net_input,cardChoice,one_hot_t)
+        #print(choice == [])
+        self.playmodel.storeSamples(net_input, cardChoice, 0, len(possiblePlays) == 1 and choice == [])
+        self.valuemodel.storeSamples(net_input,cardChoice,one_hot_t)
 
         # You need to modify the previous part !!
         return self.makeData(cardChoice)

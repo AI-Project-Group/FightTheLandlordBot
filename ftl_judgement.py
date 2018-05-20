@@ -44,7 +44,7 @@ class FTLJudgement:
             print("Turn %d: %s"%(self.nowTurn, text))
 
     # simulate the game process
-    def work(self,playmodel,kickersmodel,nowep):
+    def work(self,playmodel,valuemodel,kickersmodel,nowep):
         isGameFinished = False
         score = [0,0,0]
         while not isGameFinished: # Looping
@@ -53,7 +53,7 @@ class FTLJudgement:
                 data = {"ID": playerID, "nowTurn": self.nowTurn, "publicCard": self.publicCards}
                 data["history"] = self.playerHistory
                 data["deal"] = self.cardsPlayer[playerID]
-                player = ftl_bot.FTLBot(playmodel[playerID], kickersmodel, data, "Judge")
+                player = ftl_bot.FTLBot(playmodel[playerID], valuemodel[playerID], kickersmodel, data, "Judge")
                 cardsPlayed = player.makeDecision()
                 self.log("Player %d [%d] card %s"%(playerID, \
                     len(self.nowCardsPlayer[playerID]), \
@@ -108,7 +108,7 @@ class FTLJudgement:
         for playerID in range(3): # discard cards to table
             self.cardTable.extend(self.nowCardsPlayer[playerID])
             turnscores[playerID] = valuemodel[playerID].finishEpisode(score[playerID])
-            #playmodel[playerID].finishEpisode(turnscores[playerID], nowep>1000)
+            playmodel[playerID].finishEpisode(turnscores[playerID], True)
         #print(turnscores)
         kickersmodel.finishEpisode(turnscores)
 
@@ -133,16 +133,17 @@ class FTLJudgement:
         
 if __name__ == "__main__":
     sess = tf.InteractiveSession()
-    valuemodel = [ValueModel("val"+str(i),sess,i,"data/FTL/test.ckpt") for i in range(3)]
-    #playmodel = [PlayModel("play"+str(i),sess,i,"data/FTL/test.ckpt") for i in range(3)]
-    kickersmodel = KickersModel("kick",sess,"data/FTL/test.ckpt")
+    valuemodel = [ValueModel("val"+str(i),sess,i,"data/FTL2/test.ckpt") for i in range(3)]
+    kickersmodel = KickersModel("kick",sess,"data/FTL2/test.ckpt")
+    playmodel = [PlayModel("play"+str(i),sess,i,"data/FTL2/test.ckpt") for i in range(3)]   
     tf.global_variables_initializer().run()
     kickersmodel.load_model()
+    playmodel[2].load_model()
     episode = 1
     while True:
         print("Train Episode: %d"%(episode))
         ftlJudge = FTLJudgement([], False)
-        ftlJudge.work(valuemodel,kickersmodel,episode)
-        if episode % 1000 == 0:
-            kickersmodel.save_model()
+        ftlJudge.work(playmodel,valuemodel,kickersmodel,episode)
+        if episode % 500 == 0:
+            playmodel[2].save_model()
         episode += 1
