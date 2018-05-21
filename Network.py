@@ -517,7 +517,10 @@ class ValueModel(Network):
             if abs(batch[i][4] - 0) < 1e-6:
                 nscores = np.multiply(nextscores[i],batch[i][3])
                 nscores = [s for s in nscores if abs(s) > 1e-6]
-                tscore = np.max(nscores)
+                if len(nscores) == 0:
+                    tscore = 0
+                else:
+                    tscore = np.max(nscores)
                 tvals.append(tscore * Gamma)
             else:
                 tvals.append(batch[i][4])
