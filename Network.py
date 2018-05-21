@@ -404,8 +404,6 @@ class ValueModel(Network):
         #print(legalOut)
         minval = np.min(legalOut)
         if minval < 0:
-            print("Minus Value!!!")
-            print(legalOut)
             legalOut -= (minval-1)
             legalOut = np.multiply(legalOut,allonehot)
             #print(legalOut)
@@ -417,7 +415,12 @@ class ValueModel(Network):
         if epsilon is None or randf > epsilon:
             outidx = np.argmax(legalOut)
         else:
-            outidx = random.choice(allidx)
+            if len(allidx) == 0:
+                print("Error!!!")
+                print(allonehot)
+                outidx = random.argmax(allonehot)
+            else:
+                outidx = random.choice(allidx)
         #print(outidx)
         return PlayModel.idx2CardPs(outidx)
 
