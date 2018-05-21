@@ -418,7 +418,7 @@ class ValueModel(Network):
             if len(allidx) == 0:
                 print("Error!!!")
                 print(allonehot)
-                outidx = random.argmax(allonehot)
+                outidx = np.argmax(allonehot)
             else:
                 outidx = random.choice(allidx)
         #print(outidx)
