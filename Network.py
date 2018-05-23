@@ -547,15 +547,17 @@ class KickersModel(Network):
             
             fc_in = self.x
             for i in range(len(fcUnits)-1):
-                fc_in = self.fc_layer(fc_in, fcUnits[i], fcUnits[i+1], self.keep_prob, name="fc"+str(i),initstd=0.01)
+                fc_in = self.fc_layer(fc_in, fcUnits[i], fcUnits[i+1], self.keep_prob, name="fc"+str(i),initstd=0.1)
             
-            self.out = self.out_layer(fc_in, fcUnits[-1], outUnits, name="out",initstd=0.01)
-            self.y = tf.nn.softmax(self.out)
-            self.y_ = tf.placeholder(tf.float32, [None, outUnits])
-            self.rewards = tf.placeholder(tf.float32, [None])
+            self.out = self.out_layer(fc_in, fcUnits[-1], outUnits, name="out",initstd=0.1)
+            #self.y = tf.nn.softmax(self.out)
+            self.act = tf.placeholder(tf.float32,[None, outUnits])
+            self.y = tf.reduce_sum(tf.multiply(self.out, self.act), reduction_indices=1)
+            self.y_ = tf.placeholder(tf.float32, [None])
+            #self.rewards = tf.placeholder(tf.float32, [None])
             
-            self.cross_entropy = tf.nn.softmax_cross_entropy_with_logits(labels=self.y_, logits=self.out)
-            self.loss = tf.reduce_sum(tf.multiply(self.cross_entropy, self.rewards))
+            #self.cross_entropy = tf.nn.softmax_cross_entropy_with_logits(labels=self.y_, logits=self.out)
+            self.loss = tf.reduce_mean(tf.square(self.y - self.y_))#tf.reduce_sum(tf.multiply(self.cross_entropy, self.rewards))
             self.train_step = tf.train.AdamOptimizer(LearningRate).minimize(self.loss)
         
         super(KickersModel, self).__init__(modelname,sess,checkpoint_file)
@@ -593,7 +595,7 @@ class KickersModel(Network):
         else:
             return [idx-15]*2
     
-    def getKickers(self,netinput,allonehot):
+    def probKickers(self,netinput,allonehot):
         epsilon = 1e-6
         output = self.y.eval(feed_dict={self.x:[netinput], self.keep_prob:1.0})
         output = output.flatten()
@@ -611,6 +613,32 @@ class KickersModel(Network):
                 if randf < sum:
                     return self.idx2CardPs(i)
         return self.idx2CardPs(np.argmax(allonehot))
+    
+    def getKickers(self,netinput,allonehot,epsilon=None):
+        output = self.out.eval(feed_dict={self.x:[netinput],self.keep_prob:1.0})
+        output = output.flatten() + BaseScore
+        legalOut = np.multiply(output, allonehot)
+        #print(legalOut)
+        minval = np.min(legalOut)
+        if minval < 0:
+            legalOut -= (minval-1)
+            legalOut = np.multiply(legalOut,allonehot)
+            #print(legalOut)
+        allidx = [i for i,v in enumerate(allonehot) if v > 1e-6]
+        randf = random.random()
+        #print(randf)
+        outidx = -1
+        if epsilon is None or randf > epsilon:
+            outidx = np.argmax(legalOut)
+        else:
+            if len(allidx) == 0:
+                print("Error!!!")
+                print(allonehot)
+                outidx = np.argmax(allonehot)
+            else:
+                outidx = random.choice(allidx)
+        #print(outidx)
+        return self.idx2CardPs(outidx)      
 
     def storeSamples(self, netinput, playerID, kickers, turn):
         actidx = self.cardPs2idx(kickers)
@@ -620,7 +648,7 @@ class KickersModel(Network):
         for tmp in self.episodeTemp:
             t = tmp[3]
             p = tmp[1]
-            tmp[3] = (turnscores[p][t]+BaseScore) / (2*BaseScore)
+            tmp[3] = turnscores[p][t]#+BaseScore) / (2*BaseScore)
         
         #print([d[3] for d in self.episodeTemp])
         #print(len(self.trainBatch))
@@ -640,7 +668,7 @@ class KickersModel(Network):
         batch = self.trainBatch
         netinput = [d[0] for d in batch]
         actidxs = [d[1] for d in batch]
-        rewards = [d[2] for d in batch]
+        tscores = [d[2] for d in batch]
         acts = np.zeros((KickersBatch,self.outUnits))
         for i in range(KickersBatch):
             acts[i][actidxs[i]] = 1
@@ -656,8 +684,8 @@ class KickersModel(Network):
         #vals = self.y.eval(feed_dict={self.x:netinput, self.keep_prob:1.0})
         #print(vals)
         for _ in range(MaxEpoch):
-            self.sess.run(self.train_step, feed_dict={self.x:netinput, self.keep_prob:TrainKeepProb, self.y_:acts, self.rewards:rewards})
-        vals = self.y.eval(feed_dict={self.x:netinput, self.keep_prob:1.0})
+            self.sess.run(self.train_step, feed_dict={self.x:netinput, self.keep_prob:1.0, self.y_:tscores, self.act:acts})
+        vals = self.out.eval(feed_dict={self.x:netinput, self.keep_prob:1.0})
         print(vals)
         '''for var in tmpvar:
             print(self.sess.run(var))'''  
