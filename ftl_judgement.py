@@ -5,7 +5,7 @@ import simulator
 import ftl_bot
 import random
 import tensorflow as tf
-from Network import PlayModel, ValueModel, KickersModel
+from DQNModel import PlayModel, KickersModel
 
 # Judge class for Fight The Landlord game
 class FTLJudgement:
@@ -133,16 +133,16 @@ class FTLJudgement:
         
 if __name__ == "__main__":
     sess = tf.InteractiveSession()
-    valuemodel = [ValueModel("val"+str(i),sess,i,"data/FTL/test.ckpt") for i in range(3)]
+    playmodel = [PlayModel("play"+str(i),sess,i) for i in range(3)]
     #playmodel = [PlayModel("play"+str(i),sess,i,"data/FTL/test.ckpt") for i in range(3)]
-    kickersmodel = KickersModel("kick",sess,"data/FTL/test.ckpt")
+    kickersmodel = KickersModel("kick",sess)
     tf.global_variables_initializer().run()
-    kickersmodel.load_model()
+    #kickersmodel.load_model()
     episode = 1
     while True:
         print("Train Episode: %d"%(episode))
-        ftlJudge = FTLJudgement([], False)
-        ftlJudge.work(valuemodel,kickersmodel,episode)
-        if episode % 1000 == 0:
-            kickersmodel.save_model()
+        ftlJudge = FTLJudgement(list(range(0,54)), True)
+        ftlJudge.work(playmodel,kickersmodel,episode)
+        #if episode % 1000 == 0:
+            #kickersmodel.save_model()
         episode += 1

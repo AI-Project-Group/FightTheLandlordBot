@@ -2,12 +2,136 @@ import random
 import numpy as np
 import tensorflow as tf
 from simulator import Hand
-from collections import deque
 
 '''
 original_vesion https://github.com/thuxugang/doudizhu & https://morvanzhou.github.io/tutorials/
 modified by Firmlyzhu
 '''
+
+class SumTree(object):
+    """
+    This SumTree code is from:
+    https://github.com/thuxugang/doudizhu/blob/rl_pdqn/rl/prioritized_dqn_max_ori.py
+    &
+    https://github.com/jaara/AI-blog/blob/master/SumTree.py
+    
+    Story the data with it priority in tree and data frameworks.
+    """
+    data_pointer = 0
+
+    def __init__(self, capacity):
+        self.capacity = capacity    # for all priority values
+        self.tree = np.zeros(2*capacity - 1)
+        # [--------------Parent nodes-------------][-------leaves to recode priority-------]
+        #             size: capacity - 1                       size: capacity
+        self.data = np.zeros(capacity, dtype=object)    # for all transitions
+        # [--------------data frame-------------]
+        #             size: capacity
+
+    def add_new_priority(self, p, data):
+        leaf_idx = self.data_pointer + self.capacity - 1
+
+        self.data[self.data_pointer] = data # update data_frame
+        self.update(leaf_idx, p)    # update tree_frame
+
+        self.data_pointer += 1
+        if self.data_pointer >= self.capacity:  # replace when exceed the capacity
+            self.data_pointer = 0
+
+    def update(self, tree_idx, p):
+        change = p - self.tree[tree_idx]
+
+        self.tree[tree_idx] = p
+        self._propagate_change(tree_idx, change)
+
+    def _propagate_change(self, tree_idx, change):
+        """change the sum of priority value in all parent nodes"""
+        parent_idx = (tree_idx - 1) // 2
+        self.tree[parent_idx] += change
+        if parent_idx != 0:
+            self._propagate_change(parent_idx, change)
+
+    def get_leaf(self, lower_bound):
+        leaf_idx = self._retrieve(lower_bound)  # search the max leaf priority based on the lower_bound
+        data_idx = leaf_idx - self.capacity + 1
+        return [leaf_idx, self.tree[leaf_idx], self.data[data_idx]]
+
+    def _retrieve(self, lower_bound, parent_idx=0):
+        """
+        Tree structure and array storage:
+        Tree index:
+             0         -> storing priority sum
+            / \
+          1     2
+         / \   / \
+        3   4 5   6    -> storing priority for transitions
+        Array type for storing:
+        [0,1,2,3,4,5,6]
+        """
+        left_child_idx = 2 * parent_idx + 1
+        right_child_idx = left_child_idx + 1
+
+        if left_child_idx >= len(self.tree):    # end search when no more child
+            return parent_idx
+
+        if self.tree[left_child_idx] == self.tree[right_child_idx]:
+            return self._retrieve(lower_bound, np.random.choice([left_child_idx, right_child_idx]))
+        if lower_bound <= self.tree[left_child_idx]:  # downward search, always search for a higher priority node
+            return self._retrieve(lower_bound, left_child_idx)
+        else:
+            return self._retrieve(lower_bound-self.tree[left_child_idx], right_child_idx)
+
+    @property
+    def root_priority(self):
+        return self.tree[0]     # the root
+
+
+class Memory(object):   # stored as ( s, a, r, s_ ) in SumTree
+
+    epsilon = 0.01  # small amount to avoid zero priority
+    alpha = 0.6     # [0~1] convert the importance of TD error to priority
+    beta = 0.4      # importance-sampling, from initial value increasing to 1
+    beta_increment_per_sampling = 0.001
+    abs_err_upper = 1.  # clipped abs error
+
+    def __init__(self, capacity):
+        self.tree = SumTree(capacity)
+
+    def store(self, transition):
+        max_p = np.max(self.tree.tree[-self.tree.capacity:])
+        if max_p == 0:
+            max_p = self.abs_err_upper
+        self.tree.add_new_priority(max_p, transition)   # set the max p for new p
+
+    def sample(self, n):
+        batch_idx, batch_memory, ISWeights = [], [], []
+        segment = self.tree.root_priority / n
+        self.beta = np.min([1, self.beta + self.beta_increment_per_sampling])  # max = 1
+
+        min_prob = np.min(self.tree.tree[-self.tree.capacity:]) / self.tree.root_priority
+        maxiwi = np.power(self.tree.capacity * min_prob, -self.beta)  # for later normalizing ISWeights
+        for i in range(n):
+            a = segment * i
+            b = segment * (i + 1)
+            lower_bound = np.random.uniform(a, b)
+            idx, p, data = self.tree.get_leaf(lower_bound)
+            prob = p / self.tree.root_priority
+            ISWeights.append(self.tree.capacity * prob)
+            batch_idx.append(idx)
+            batch_memory.append(data)
+
+        ISWeights = np.vstack(ISWeights)
+        ISWeights = np.power(ISWeights, -self.beta) / maxiwi  # normalize
+        return batch_idx, np.vstack(batch_memory), ISWeights
+
+    def update(self, idx, error):
+        p = self._get_priority(error)
+        self.tree.update(idx, p)
+
+    def _get_priority(self, error):
+        error += self.epsilon  # avoid 0
+        clipped_error = np.clip(error, 0, self.abs_err_upper)
+        return np.power(clipped_error, self.alpha)
 
 class DuelingDQN:
     def __init__(
@@ -49,7 +173,7 @@ class DuelingDQN:
         self.learn_step_counter = 0
 
         # initialize zero memory [s, a, r, s_]
-        self.memory = np.zeros((self.memory_size, n_features * 2 + 2 + n_actions))
+        self.memory = Memory(capacity=memory_size)
 
         # consist of [target_net, evaluate_net]
         with tf.variable_scope(self.modelname):
@@ -62,7 +186,6 @@ class DuelingDQN:
             # tf.train.SummaryWriter soon be deprecated, use following
             tf.summary.FileWriter("logs/", self.sess.graph)
 
-        self.sess.run(tf.global_variables_initializer())
         self.cost_his = []
     
     #修改
@@ -90,7 +213,7 @@ class DuelingDQN:
                     b3 = tf.get_variable('b3', [1, self.n_actions], initializer=b_initializer, collections=c_names)
                     self.A = tf.matmul(l2, w3) + b3
                 with tf.variable_scope('Q'):
-                    out = self.V + (self.A - tf.reduce_mean(self.A, axis=1, keep_dims=True))     # Q = V(s) + A(s,a)
+                    out = self.V + (self.A - tf.reduce_mean(self.A, axis=1, keepdims=True))     # Q = V(s) + A(s,a)
               
             else:
                 with tf.variable_scope('l3'):
@@ -107,6 +230,7 @@ class DuelingDQN:
         self.a = tf.placeholder(tf.int32, [None, ], name='a')  # input Action
         
         self.action_possible = tf.placeholder(tf.float32, [None, self.n_actions], name='action_possible')  # input Action
+        self.ISWeights = tf.placeholder(tf.float32, [None, 1], name='IS_weights')
 
         # ------------------ build evaluate_net ------------------
         with tf.variable_scope('eval_net'):
@@ -132,37 +256,37 @@ class DuelingDQN:
             self.q_eval_wrt_a = tf.reduce_sum(self.q_eval * a_one_hot, axis=1)     # shape=(None, )
 
         with tf.variable_scope('loss'):
-            self.loss = tf.reduce_mean(tf.squared_difference(self.q_target, self.q_eval_wrt_a, name='TD_error'))
+            self.abs_errors = tf.reduce_sum(tf.abs(self.q_target - self.q_eval_wrt_a), axis=1)    # for updating Sumtree
+            self.loss = tf.reduce_mean(self.ISWeights * tf.squared_difference(self.q_target, self.q_eval_wrt_a, name='TD_error'))
         with tf.variable_scope('train'):
             self._train_op = tf.train.AdamOptimizer(self.lr).minimize(self.loss)
 
     def store_transition(self, s, actions_one_hot, a, r, s_):
-        if not hasattr(self, 'memory_counter'):
-            self.memory_counter = 0
         transition = np.hstack((s, actions_one_hot, [a, r], s_))
-        index = self.memory_counter % self.memory_size
-        self.memory[index, :] = transition
-        self.memory_counter += 1
+        self.memory.store(transition)
     
     def get_action(self, netinput, actions_one_hot, norand=False):
-        output = self.q_eval.eval(feed_dict={self.x:[netinput]})
+        output = self.q_eval.eval(feed_dict={self.s:[netinput]})
         output = output.flatten() + self.BaseScore
+        #print(output)
         legalOut = np.multiply(output, actions_one_hot)
         #print(legalOut)
         minval = np.min(legalOut)
         if minval < 0:
             legalOut -= (minval-1)
             legalOut = np.multiply(legalOut,actions_one_hot)
-            #print(legalOut)
+        #print(legalOut)
         allidx = [i for i,v in enumerate(actions_one_hot) if v > 1e-6]
         #print(allidx)
         randf = random.random()
         #print(randf)
+        #print(self.epsilon)
         outidx = -1
         if norand or randf < self.epsilon:
             outidx = np.argmax(legalOut)
         else:
             outidx = random.choice(allidx)
+        #print(outidx)
         return outidx, legalOut[outidx]
 
     def _replace_target_params(self):
@@ -171,36 +295,44 @@ class DuelingDQN:
         self.sess.run([tf.assign(t, e) for t, e in zip(t_params, e_params)])
     
     def learn(self):
-        # check to replace target parameters
         if self.learn_step_counter % self.replace_target_iter == 0:
             self._replace_target_params()
             #print('\ntarget_params_replaced\n')
 
-        # sample batch memory from all memory
-        if self.memory_counter > self.memory_size:
-            sample_index = np.random.choice(self.memory_size, size=self.batch_size)
+        tree_idx, batch_memory, ISWeights = self.memory.sample(self.batch_size)
+
+        q_next, q_eval = self.sess.run(
+                [self.q_next, self.q_eval],
+                feed_dict={self.s_: batch_memory[:, self.n_features+self.n_actions+2:],
+                           self.s: batch_memory[:, :self.n_features]})
+
+        q_target = q_eval.copy()
+        batch_index = np.arange(self.batch_size, dtype=np.int32)
+        eval_act_index = batch_memory[:, self.n_features+self.n_actions].astype(int)
+        reward = batch_memory[:, self.n_features+self.n_actions+1]
+
+        action_possible = batch_memory[:, self.n_features:self.n_features+self.n_actions]
+        q_target[batch_index, eval_act_index] = reward + self.gamma * np.max(q_next*action_possible, axis=1)
+
+        if self.prioritized:
+            _, abs_errors, self.cost = self.sess.run([self._train_op, self.abs_errors, self.loss],
+                                         feed_dict={self.s: batch_memory[:, :self.n_features],
+                                                    self.q_target: q_target,
+                                                    self.ISWeights: ISWeights})
+            for i in range(len(tree_idx)):  # update priority
+                idx = tree_idx[i]
+                self.memory.update(idx, abs_errors[i])
         else:
-            sample_index = np.random.choice(self.memory_counter, size=self.batch_size)
-        batch_memory = self.memory[sample_index, :]
+            _, self.cost = self.sess.run([self._train_op, self.loss],
+                                         feed_dict={self.s: batch_memory[:, :self.n_features],
+                                                    self.q_target: q_target})
 
-        _, cost = self.sess.run(
-            [self._train_op, self.loss],
-            feed_dict={
-                self.s: batch_memory[:, :self.n_features],
-                self.action_possible: batch_memory[:, self.n_features:self.n_features+self.n_actions],
-                self.a: batch_memory[:, self.n_features+self.n_actions],
-                self.r: batch_memory[:, self.n_features +self.n_actions+1],
-                self.s_: batch_memory[:, self.n_features +self.n_actions+2:],
-            })
-    
-        self.cost_his.append(cost)
+        self.cost_his.append(self.cost)
 
-        # increasing epsilon
         self.epsilon = self.epsilon + self.epsilon_increment if self.epsilon < self.epsilon_max else self.epsilon_max
         self.learn_step_counter += 1
+        return self.cost
         
-        return cost
-    
     #新增
     def save_model(self,path,ckptname):
         saver = tf.train.Saver() 
@@ -222,7 +354,7 @@ class PlayModel(DuelingDQN):
 
     def __init__(self,modelname,sess,player):
         self.player = player
-        super(PlayModel, self).__init__(105+364,364,modelname,sess)
+        super(PlayModel, self).__init__(105+364,364,modelname,sess,reward_decay=0.97,e_greedy=0.5)
 
     @staticmethod
     def cards2NumArray(cards):
@@ -233,7 +365,7 @@ class PlayModel(DuelingDQN):
         return res
     
     @staticmethod
-    def ch2input(playerID,myCards,publicCards,history,lastPlay,lastLastPlay):
+    def ch2input(playerID,myCards,publicCards,history,lastPlay,lastLastPlay,actions_one_hot):
         net_input = []
         net_input.append(PlayModel.cards2NumArray(myCards))
         net_input.append(PlayModel.cards2NumArray(publicCards))
@@ -246,7 +378,9 @@ class PlayModel(DuelingDQN):
             player = (player - 1) % 3
         net_input.append(PlayModel.cards2NumArray(lastPlay))
         net_input.append(PlayModel.cards2NumArray(lastLastPlay))
-        return np.array(net_input).flatten() + 1
+        net_input = np.array(net_input).flatten()
+        net_input = np.hstack([net_input,actions_one_hot])
+        return net_input + 1
     
     @staticmethod
     def getDisFromChain(chain,baseChain,maxNum):
@@ -387,18 +521,53 @@ class PlayModel(DuelingDQN):
             res.append({"kickerNum":2,"chain":chain,"type":"Four"})
             res.extend(list(range(primal,primal+chain)) * 4)            
         return res        
+
+class KickersModel(DuelingDQN):
     
+    def __init__(self,modelname,sess):
+        super(KickersModel, self).__init__(105+364+15,28,modelname,sess,e_greedy=0.4)
     
+    @staticmethod
+    def ch2input(playmodel_input, primPoints):
+        res = playmodel_input.tolist()
+        prims = np.zeros(15)
+        for p in primPoints:
+            prims[p] += 1
+        res.extend(prims)
+        return np.array(res)
         
+    def cardPs2idx(self,cardPoints):
+        if len(cardPoints) == 1:
+            return cardPoints[0]
+        elif len(cardPoints) == 2 and cardPoints[0] < 13:
+            return cardPoints[0] + 15
+        else:
+            return -1
+    
+    def allkickers2onehot(self,allkicers):
+        res = np.zeros(self.n_actions)
+        for k in allkicers:
+            idx = self.cardPs2idx(k)
+            res[idx] = 1
+        return res        
+    
+    def idx2CardPs(self,idx):
+        if idx < 15:
+            return [idx]
+        else:
+            return [idx-15]*2    
 
 if __name__ == '__main__':
     #accelerate MLP
     config = tf.ConfigProto()
     config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
     sess = tf.Session(config=config)
-    DQN = DuelingDQN(3,4,"test",sess)
-    vals = DQN.q_eval.eval(session=sess, feed_dict={DQN.s:[[0,0,0]]})
+    play = PlayModel("play",sess,0)
+    kick = KickersModel("kickers",sess)
+    sess.run(tf.global_variables_initializer())
+    kick.save_model("data/test/","test")
+    '''vals = DQN.q_eval.eval(session=sess, feed_dict={DQN.s:[[0,0,0]]})
     print(vals)
     vals = DQN.q_next.eval(session=sess,feed_dict={DQN.s_:[[1,0,0]],DQN.r:[0]})
     print(vals)
-    print(DQN.q_target.eval(session=sess,feed_dict={DQN.s_:[[1,0,0]],DQN.r:[10],DQN.action_possible:[[0,1,0,0]]}))
+    print(DQN.q_target.eval(session=sess,feed_dict={DQN.s_:[[1,0,0]],DQN.r:[10],DQN.action_possible:[[0,1,0,0]]}))'''

@@ -76,9 +76,12 @@ class FTLBot:
             return self.makeData([])
         
         sim = self.simulator
-        net_input = PlayModel.ch2input(sim.nowPlayer,sim.myCards,sim.publicCard,sim.history,sim.lastPlay,sim.lastLastPlay)
         one_hot_t = self.playmodel.hand2one_hot(possiblePlays)
-        choice = self.playmodel.getAction(net_input, one_hot_t, 0.3)
+        net_input = self.playmodel.ch2input(sim.nowPlayer,sim.myCards,sim.publicCard,sim.history,sim.lastPlay,sim.lastLastPlay,one_hot_t)
+        #print(net_input.shape)
+        #print(net_input)
+        actidx,val = self.playmodel.get_action(net_input, one_hot_t)
+        choice = self.playmodel.idx2CardPs(actidx)
         #print(choice)
 
         # Add kickers, if first element is dict, the choice must has some kickers
@@ -93,18 +96,19 @@ class FTLBot:
                 num *= 2
             kickers = []
             for _ in range(num):
-                kickers.append(self.kickersmodel.getKickers(kickers_input,kickers_onehot))
+                actidx,val = self.kickersmodel.get_action(kickers_input,kickers_onehot)
+                kickers.append(self.kickersmodel.idx2CardPs(actidx))
                 kidx = self.kickersmodel.cardPs2idx(kickers[-1])
                 kickers_onehot[kidx] = 0
             for k in kickers:
                 tmphand.extend(k)
-                self.kickersmodel.storeSamples(kickers_input,sim.nowPlayer,k,sim.nowTurn)
+                #self.kickersmodel.storeSamples(kickers_input,sim.nowPlayer,k,sim.nowTurn)
             #print(self.kickersmodel.episodeTemp)
             choice = tmphand
         cardChoice = simulator.CardInterpreter.selectCardByHand(self.simulator.myCards, choice)
         
         #self.playmodel.storeSamples(net_input,cardChoice, len(possiblePlays) == 1 and choice == [])
-        self.playmodel.storeSamples(net_input,cardChoice,one_hot_t)
+        #self.playmodel.storeSamples(net_input,cardChoice,one_hot_t)
 
         # You need to modify the previous part !!
         return self.makeData(cardChoice)
