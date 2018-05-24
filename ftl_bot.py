@@ -102,13 +102,13 @@ class FTLBot:
                 kickers_onehot[kidx] = 0
             for k in kickers:
                 tmphand.extend(k)
-                #self.kickersmodel.storeSamples(kickers_input,sim.nowPlayer,k,sim.nowTurn)
+                self.kickersmodel.storeSamples(kickers_input,sim.nowPlayer,k,sim.nowTurn)
             #print(self.kickersmodel.episodeTemp)
             choice = tmphand
         cardChoice = simulator.CardInterpreter.selectCardByHand(self.simulator.myCards, choice)
         
         #self.playmodel.storeSamples(net_input,cardChoice, len(possiblePlays) == 1 and choice == [])
-        #self.playmodel.storeSamples(net_input,cardChoice,one_hot_t)
+        self.playmodel.storeSamples(net_input,cardChoice,one_hot_t)
 
         # You need to modify the previous part !!
         return self.makeData(cardChoice)

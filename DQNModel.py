@@ -16,8 +16,7 @@ class SumTree(object):
     https://github.com/jaara/AI-blog/blob/master/SumTree.py
     
     Story the data with it priority in tree and data frameworks.
-    """
-    data_pointer = 0
+    """    
 
     def __init__(self, capacity):
         self.capacity = capacity    # for all priority values
@@ -25,6 +24,7 @@ class SumTree(object):
         # [--------------Parent nodes-------------][-------leaves to recode priority-------]
         #             size: capacity - 1                       size: capacity
         self.data = np.zeros(capacity, dtype=object)    # for all transitions
+        self.data_pointer = 0
         # [--------------data frame-------------]
         #             size: capacity
 
@@ -88,10 +88,10 @@ class SumTree(object):
 
 class Memory(object):   # stored as ( s, a, r, s_ ) in SumTree
 
-    epsilon = 0.01  # small amount to avoid zero priority
+    epsilon = 1e-4  # small amount to avoid zero priority
     alpha = 0.6     # [0~1] convert the importance of TD error to priority
     beta = 0.4      # importance-sampling, from initial value increasing to 1
-    beta_increment_per_sampling = 0.001
+    beta_increment_per_sampling = 1e-4
     abs_err_upper = 1.  # clipped abs error
 
     def __init__(self, capacity):
@@ -110,6 +110,7 @@ class Memory(object):   # stored as ( s, a, r, s_ ) in SumTree
 
         min_prob = np.min(self.tree.tree[-self.tree.capacity:]) / self.tree.root_priority
         maxiwi = np.power(self.tree.capacity * min_prob, -self.beta)  # for later normalizing ISWeights
+        #print(self.tree.root_priority)
         for i in range(n):
             a = segment * i
             b = segment * (i + 1)
@@ -119,8 +120,9 @@ class Memory(object):   # stored as ( s, a, r, s_ ) in SumTree
             ISWeights.append(self.tree.capacity * prob)
             batch_idx.append(idx)
             batch_memory.append(data)
-
-        ISWeights = np.vstack(ISWeights)
+        
+        #print(ISWeights)
+        ISWeights = np.hstack(ISWeights)
         ISWeights = np.power(ISWeights, -self.beta) / maxiwi  # normalize
         return batch_idx, np.vstack(batch_memory), ISWeights
 
@@ -141,7 +143,7 @@ class DuelingDQN:
             modelname,
             sess,
             learning_rate=1e-4,
-            reward_decay=0.95,
+            reward_decay=0.97,
             e_greedy=0.9,
             replace_target_iter=300,
             memory_size=3200,
@@ -230,14 +232,14 @@ class DuelingDQN:
         self.a = tf.placeholder(tf.int32, [None, ], name='a')  # input Action
         
         self.action_possible = tf.placeholder(tf.float32, [None, self.n_actions], name='action_possible')  # input Action
-        self.ISWeights = tf.placeholder(tf.float32, [None, 1], name='IS_weights')
+        self.ISWeights = tf.placeholder(tf.float32, [None,], name='IS_weights')
 
         # ------------------ build evaluate_net ------------------
         with tf.variable_scope('eval_net'):
             # c_names(collections_names) are the collections to store variables
             c_names, w_initializer, b_initializer = \
                 ['eval_net_params', tf.GraphKeys.GLOBAL_VARIABLES], \
-                tf.random_normal_initializer(0., 0.3), tf.constant_initializer(0.1)  # config of layers
+                tf.random_normal_initializer(0., 0.1), tf.constant_initializer(0.1)  # config of layers
             self.q_eval = build_layers(self.s, c_names, w_initializer, b_initializer)
 
         # ------------------ build target_net ------------------
@@ -246,23 +248,33 @@ class DuelingDQN:
             c_names = ['target_net_params', tf.GraphKeys.GLOBAL_VARIABLES]
             q_next = build_layers(self.s_, c_names, w_initializer, b_initializer)
             self.q_next = q_next + self.BaseScore
+            #print(self.q_next.shape)
 
         with tf.variable_scope('q_target'):
-            q_target = self.r + self.gamma * (tf.reduce_max(self.q_next*self.action_possible, axis=1, name='Qmax_s_') - self.BaseScore)    # shape=(None, )
+            q_next_max = tf.reduce_max(self.q_next*self.action_possible, axis=1, name='Qmax_s_')
+            #print(q_next_max.shape)
+            q_target = self.r + self.gamma * (q_next_max - self.BaseScore)    # shape=(None, )
             self.q_target = tf.stop_gradient(q_target)
+            #print(self.q_target.shape)
 
         with tf.variable_scope('q_eval'):
             a_one_hot = tf.one_hot(self.a, depth=self.n_actions, dtype=tf.float32)
             self.q_eval_wrt_a = tf.reduce_sum(self.q_eval * a_one_hot, axis=1)     # shape=(None, )
+            #print(self.q_eval_wrt_a.shape)
 
         with tf.variable_scope('loss'):
-            self.abs_errors = tf.reduce_sum(tf.abs(self.q_target - self.q_eval_wrt_a), axis=1)    # for updating Sumtree
+            self.abs_errors = tf.abs(self.q_target - self.q_eval_wrt_a)    # for updating Sumtree
+            #print(self.abs_errors.shape)
             self.loss = tf.reduce_mean(self.ISWeights * tf.squared_difference(self.q_target, self.q_eval_wrt_a, name='TD_error'))
         with tf.variable_scope('train'):
             self._train_op = tf.train.AdamOptimizer(self.lr).minimize(self.loss)
 
-    def store_transition(self, s, actions_one_hot, a, r, s_):
-        transition = np.hstack((s, actions_one_hot, [a, r], s_))
+    def store_transition(self, s, a, r, s_, actions_one_hot,player=None,initr=None):
+        #print((s,[a, r], s_, actions_one_hot))
+        if player is None and initr is None:
+            transition = np.hstack((s, [a, r], s_, actions_one_hot))
+        else:
+            transition = np.hstack((s, [a, r], [player,initr], s_, actions_one_hot))
         self.memory.store(transition)
     
     def get_action(self, netinput, actions_one_hot, norand=False):
@@ -294,44 +306,55 @@ class DuelingDQN:
         e_params = tf.get_collection('eval_net_params')
         self.sess.run([tf.assign(t, e) for t, e in zip(t_params, e_params)])
     
-    def learn(self):
+    def learn(self,iskickers=False):
         if self.learn_step_counter % self.replace_target_iter == 0:
             self._replace_target_params()
-            #print('\ntarget_params_replaced\n')
+            print('\ntarget_params_replaced\n')
 
         tree_idx, batch_memory, ISWeights = self.memory.sample(self.batch_size)
-
-        q_next, q_eval = self.sess.run(
-                [self.q_next, self.q_eval],
-                feed_dict={self.s_: batch_memory[:, self.n_features+self.n_actions+2:],
-                           self.s: batch_memory[:, :self.n_features]})
-
-        q_target = q_eval.copy()
-        batch_index = np.arange(self.batch_size, dtype=np.int32)
-        eval_act_index = batch_memory[:, self.n_features+self.n_actions].astype(int)
-        reward = batch_memory[:, self.n_features+self.n_actions+1]
-
-        action_possible = batch_memory[:, self.n_features:self.n_features+self.n_actions]
-        q_target[batch_index, eval_act_index] = reward + self.gamma * np.max(q_next*action_possible, axis=1)
-
-        if self.prioritized:
-            _, abs_errors, self.cost = self.sess.run([self._train_op, self.abs_errors, self.loss],
-                                         feed_dict={self.s: batch_memory[:, :self.n_features],
-                                                    self.q_target: q_target,
-                                                    self.ISWeights: ISWeights})
-            for i in range(len(tree_idx)):  # update priority
-                idx = tree_idx[i]
-                self.memory.update(idx, abs_errors[i])
+        
+        ins = batch_memory[:, :self.n_features]
+        ina = batch_memory[:, self.n_features]
+        inr = batch_memory[:, self.n_features+1]
+        if not iskickers:
+            ins_ = batch_memory[:, self.n_features+2:self.n_features+2+self.n_features]
+            inaction_possible = batch_memory[:, self.n_features+2+self.n_features:]
         else:
-            _, self.cost = self.sess.run([self._train_op, self.loss],
-                                         feed_dict={self.s: batch_memory[:, :self.n_features],
-                                                    self.q_target: q_target})
-
-        self.cost_his.append(self.cost)
+            #print(inr)
+            inr = inr + self.BaseScore*self.gamma
+            ins_ = np.zeros((self.batch_size,self.n_features))
+            inaction_possible = np.zeros((self.batch_size,self.n_actions))
+        '''print(ins)
+        print(ina)
+        print(inr)
+        print(ins_)
+        print(inaction_possible)'''
+        '''qt,qe,abs_errors = self.sess.run([self.q_target,self.q_eval_wrt_a,self.abs_errors],
+                                          feed_dict={self.s: ins,
+                                                     self.a: ina,
+                                                     self.r: inr,
+                                                     self.s_: ins_,
+                                                     self.action_possible: inaction_possible})
+        print(qt)
+        print(qe)
+        print(abs_errors)'''
+        
+        _,loss = self.sess.run([self._train_op,self.loss],
+                          feed_dict={self.s: ins, self.a: ina, self.r: inr, self.s_: ins_, 
+                                     self.action_possible: inaction_possible, self.ISWeights: ISWeights})
+        abs_errors = self.sess.run(self.abs_errors, 
+                                   feed_dict={self.s: ins, self.a: ina, self.r: inr, self.s_: ins_,
+                                              self.action_possible: inaction_possible})
+        
+        #print(abs_errors)
+        for i in range(len(tree_idx)):  # update priority
+            idx = tree_idx[i]
+            self.memory.update(idx, abs_errors[i]/50.0)
 
         self.epsilon = self.epsilon + self.epsilon_increment if self.epsilon < self.epsilon_max else self.epsilon_max
         self.learn_step_counter += 1
-        return self.cost
+        
+        return loss
         
     #新增
     def save_model(self,path,ckptname):
@@ -341,7 +364,11 @@ class DuelingDQN:
     #新增
     def load_model(self,path,ckptname):
         saver = tf.train.Saver() 
-        saver.restore(self.sess, path+ckptname+".ckpt") 
+        try:
+            saver.restore(self.sess, path+ckptname+".ckpt")
+        except Exception as err:
+            print(err)
+            print("Fail to restore!")
         
     def plot_cost(self):
         import matplotlib.pyplot as plt
@@ -354,7 +381,8 @@ class PlayModel(DuelingDQN):
 
     def __init__(self,modelname,sess,player):
         self.player = player
-        super(PlayModel, self).__init__(105+364,364,modelname,sess,reward_decay=0.97,e_greedy=0.5)
+        super(PlayModel, self).__init__(105+364,364,modelname,sess,memory_size=3200,batch_size=128,e_greedy_increment=0.9/2e5)
+        self.episodeTemp = []
 
     @staticmethod
     def cards2NumArray(cards):
@@ -522,10 +550,38 @@ class PlayModel(DuelingDQN):
             res.extend(list(range(primal,primal+chain)) * 4)            
         return res        
 
+    def storeSamples(self,netinput,action,allonehot):
+        actidx = PlayModel.cardPs2idx(Hand.getCardPoint(action))
+        hand = Hand(action)
+        self.episodeTemp.append([netinput,actidx,hand.getHandScore(),allonehot])
+
+    def finishEpisode(self,score,istrain=True):      
+        #print("Player %d add to the train batch"%(self.player))
+        nlen = len(self.episodeTemp)
+        #print(nlen)
+        for i in range(nlen,0,-1):
+            data = self.episodeTemp[i-1]
+            if i == nlen:
+                self.store_transition(data[0],data[1],data[2]+score+self.BaseScore*self.gamma,np.zeros(self.n_features),np.zeros(self.n_actions))
+            else:
+                ndata = self.episodeTemp[i]
+                self.store_transition(data[0],data[1],data[2],ndata[0],ndata[3])
+        
+        #print(self.memory.tree.tree)
+        minp = np.min(self.memory.tree.tree)
+        #print(minp)
+        if istrain and minp > 0:
+            print("Train for PlayModel Player: %d" % self.player)
+            loss = self.learn()
+            print("learn_step_counter:"+str(self.learn_step_counter)+" loss:"+str(loss)+" epsilon:"+str(self.epsilon)+" root_p:"+str(self.memory.tree.root_priority))
+        
+        self.episodeTemp = []
+        
 class KickersModel(DuelingDQN):
     
     def __init__(self,modelname,sess):
-        super(KickersModel, self).__init__(105+364+15,28,modelname,sess,e_greedy=0.4)
+        super(KickersModel, self).__init__(105+364+15,28,modelname,sess,memory_size=320,batch_size=16,e_greedy_increment=0.9/1e5)
+        self.episodeTemp = []
     
     @staticmethod
     def ch2input(playmodel_input, primPoints):
@@ -555,7 +611,60 @@ class KickersModel(DuelingDQN):
         if idx < 15:
             return [idx]
         else:
-            return [idx-15]*2    
+            return [idx-15]*2
+            
+    def storeSamples(self, netinput, playerID, kickers, turn):
+        actidx = self.cardPs2idx(kickers)
+        self.episodeTemp.append([netinput, playerID, actidx, turn])
+        
+    def finishEpisode(self,playmodels,scores):
+        for tmp in self.episodeTemp:
+            p = tmp[1]
+            t = tmp[3]
+            datatemp = playmodels[p].episodeTemp
+            if t >= len(datatemp)-1:
+                self.store_transition(tmp[0], tmp[2], 0, np.zeros(playmodels[p].n_features), np.zeros(playmodels[p].n_actions), p, scores[p]+self.BaseScore*self.gamma)
+            else:
+                self.store_transition(tmp[0], tmp[2], 0, datatemp[t+1][0], datatemp[t+1][3], p, 0)
+        
+        #print(self.episodeTemp)
+        #print(self.memory.tree.tree)
+        minp = np.min(self.memory.tree.tree)
+        #print(minp)
+        if len(self.episodeTemp) != 0 and minp > 0:
+            print("Train for KickersModel...")
+            
+            # update reward
+            data = self.memory.tree.data
+            targetd = [[],[],[]]
+            targetidx = [[],[],[]]
+            #print(data)
+            for i,d in enumerate(data):
+                player = int(d[self.n_features+2])
+                targetidx[player].append(int(i))
+                targetd[player].append(d[self.n_features+3:])
+            
+            for p in range(3):
+                if len(targetidx[p]) == 0:
+                    continue
+                model = playmodels[p]
+                tdata = np.vstack(targetd[p])
+                #print(tdata[:,0])
+                tvals = self.sess.run(model.q_target, feed_dict={model.s_: tdata[:, 1:model.n_features+1], 
+                                                                 model.r: tdata[:,0],
+                                                                 model.action_possible: tdata[:,model.n_features+1:]})
+                #print(tvals)
+                for i,idx in enumerate(targetidx[p]):
+                    data[idx][self.n_features+1] = tvals[i]
+                    #print(data[idx].tolist())
+            
+            # learn
+            loss = self.learn(True)
+            print("learn_step_counter:"+str(self.learn_step_counter)+" loss:"+str(loss)+" epsilon:"+str(self.epsilon)+" root_p:"+str(self.memory.tree.root_priority))
+        
+        self.episodeTemp = []
+
+    
 
 if __name__ == '__main__':
     #accelerate MLP

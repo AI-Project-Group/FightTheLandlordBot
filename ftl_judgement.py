@@ -103,14 +103,13 @@ class FTLJudgement:
                 input("Press <ENTER> to continue...")
 
         self.log("Game finished")
+        kickersmodel.finishEpisode(playmodel,score)
         turnscores = [[],[],[]]
         # @TODO Add Model Training        
         for playerID in range(3): # discard cards to table
             self.cardTable.extend(self.nowCardsPlayer[playerID])
-            turnscores[playerID] = valuemodel[playerID].finishEpisode(score[playerID])
+            turnscores[playerID] = playmodel[playerID].finishEpisode(score[playerID])
             #playmodel[playerID].finishEpisode(turnscores[playerID], nowep>1000)
-        #print(turnscores)
-        kickersmodel.finishEpisode(turnscores)
 
         return self.cardTable
     
@@ -137,12 +136,12 @@ if __name__ == "__main__":
     #playmodel = [PlayModel("play"+str(i),sess,i,"data/FTL/test.ckpt") for i in range(3)]
     kickersmodel = KickersModel("kick",sess)
     tf.global_variables_initializer().run()
-    #kickersmodel.load_model()
+    kickersmodel.load_model("data/FTL/","DQN")
     episode = 1
     while True:
         print("Train Episode: %d"%(episode))
-        ftlJudge = FTLJudgement(list(range(0,54)), True)
+        ftlJudge = FTLJudgement([], False)
         ftlJudge.work(playmodel,kickersmodel,episode)
-        #if episode % 1000 == 0:
-            #kickersmodel.save_model()
+        if episode % 1000 == 0:
+            kickersmodel.save_model("data/FTL/","DQN")
         episode += 1
