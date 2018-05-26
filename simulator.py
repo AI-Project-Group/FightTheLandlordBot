@@ -199,7 +199,7 @@ class Hand:
             score = 16 #+ 16
         elif self.type == "Four" and self.chain > 2:
             score = 20 #+ self.chain * 4
-        return score #/ 100.0
+        return score * 2 #/ 100.0
 
 
 class CardInterpreter:
