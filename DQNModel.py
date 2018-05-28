@@ -192,6 +192,7 @@ class DuelingDQN:
         
         self.t_params = tf.get_collection(self.modelname+'/target_net_params')
         self.e_params = tf.get_collection(self.modelname+'/eval_net_params')
+        self.saver = tf.train.Saver()
     
     #修改
     def _build_net(self):
@@ -364,14 +365,12 @@ class DuelingDQN:
         
     #新增
     def save_model(self,path,ckptname):
-        saver = tf.train.Saver() 
-        saver.save(self.sess, path+ckptname+".ckpt") 
+        self.saver.save(self.sess, path+ckptname+".ckpt", write_meta_graph=False)
 
     #新增
     def load_model(self,path,ckptname):
-        saver = tf.train.Saver() 
         try:
-            saver.restore(self.sess, path+ckptname+".ckpt")
+            self.saver.restore(self.sess, path+ckptname+".ckpt")
         except Exception as err:
             print(err)
             print("Fail to restore!")
