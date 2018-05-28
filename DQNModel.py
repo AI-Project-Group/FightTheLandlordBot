@@ -192,6 +192,12 @@ class DuelingDQN:
         
         self.t_params = tf.get_collection(self.modelname+'/target_net_params')
         self.e_params = tf.get_collection(self.modelname+'/eval_net_params')
+        self.params_in = []
+        self.assign_ops = []
+        for param in self.t_params:
+            tmpname = param.name.replace("/","_").replace(":","_")
+            self.params_in.append(tf.placeholder(tf.float32, param.shape, name=tmpname+"_in"))
+            self.assign_ops.append(tf.assign(param, self.params_in[-1]))
         self.saver = tf.train.Saver()
     
     #修改
@@ -307,9 +313,9 @@ class DuelingDQN:
 
     def _replace_target_params(self):
         e_params_vals = self.sess.run(self.e_params)
-        #print(self.e_params)
         #print(e_params_vals)
-        self.sess.run([tf.assign(t, e) for t, e in zip(self.t_params, e_params_vals)])
+        for i in range(len(e_params_vals)):
+            self.sess.run(self.assign_ops[i],feed_dict={self.params_in[i]:e_params_vals[i]})
     
     def learn(self,iskickers=False):
         #print(self.sess.run(self.t_params[0]))
