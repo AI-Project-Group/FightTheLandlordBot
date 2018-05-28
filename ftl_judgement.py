@@ -131,7 +131,9 @@ class FTLJudgement:
         print("Final Score:"+str(score))
         
 if __name__ == "__main__":
-    sess = tf.InteractiveSession()
+    config = tf.ConfigProto()
+    config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
+    sess = tf.InteractiveSession(config=config)
     playmodel = [PlayModel("play"+str(i),sess,i) for i in range(3)]
     #playmodel = [PlayModel("play"+str(i),sess,i,"data/FTL/test.ckpt") for i in range(3)]
     kickersmodel = KickersModel("kick",sess)

@@ -1010,7 +1010,9 @@ class FTLBot:
         return self.makeData(cardChoice,val)
 
 if __name__ == "__main__":
-    sess = tf.InteractiveSession()
+    config = tf.ConfigProto()
+    config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
+    sess = tf.InteractiveSession(config=config)
     playmodel = [PlayModel("play"+str(i),sess,i) for i in range(3)]
     kickersmodel = KickersModel("kick",sess)
     tf.global_variables_initializer().run()
