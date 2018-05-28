@@ -144,10 +144,4 @@ if __name__ == "__main__":
         ftlJudge.work(playmodel,kickersmodel,episode)
         if episode % 1000 == 0:
             kickersmodel.save_model("data/FTL/","DQN")
-            sess.close()
-            sess = tf.InteractiveSession()
-            for i in range(3):
-                playmodel[i].sess = sess
-            kickersmodel.sess = sess
-            kickersmodel.load_model("data/FTL/","DQN")
         episode += 1

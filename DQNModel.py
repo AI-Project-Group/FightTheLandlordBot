@@ -587,6 +587,7 @@ class KickersModel(DuelingDQN):
     def __init__(self,modelname,sess):
         super(KickersModel, self).__init__(105+364+15,28,modelname,sess,memory_size=320,batch_size=16,e_greedy_increment=0.9/1e5)
         self.episodeTemp = []
+        tf.Graph().finalize()
     
     @staticmethod
     def ch2input(playmodel_input, primPoints):
