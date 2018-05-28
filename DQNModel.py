@@ -143,7 +143,7 @@ class DuelingDQN:
             modelname,
             sess,
             learning_rate=1e-4,
-            reward_decay=0.97,
+            reward_decay=0.98,
             e_greedy=0.9,
             replace_target_iter=300,
             memory_size=3200,
@@ -189,6 +189,9 @@ class DuelingDQN:
             tf.summary.FileWriter("logs/", self.sess.graph)
 
         self.cost_his = []
+        
+        self.t_params = tf.get_collection(self.modelname+'/target_net_params')
+        self.e_params = tf.get_collection(self.modelname+'/eval_net_params')
     
     #修改
     def _build_net(self):
@@ -215,7 +218,7 @@ class DuelingDQN:
                     b3 = tf.get_variable('b3', [1, self.n_actions], initializer=b_initializer, collections=c_names)
                     self.A = tf.matmul(l2, w3) + b3
                 with tf.variable_scope('Q'):
-                    out = self.V + (self.A - tf.reduce_mean(self.A, axis=1, keepdims=True))     # Q = V(s) + A(s,a)
+                    out = self.V + (self.A - tf.reduce_mean(self.A, axis=1, keep_dims=True))     # Q = V(s) + A(s,a)
               
             else:
                 with tf.variable_scope('l3'):
@@ -238,14 +241,14 @@ class DuelingDQN:
         with tf.variable_scope('eval_net'):
             # c_names(collections_names) are the collections to store variables
             c_names, w_initializer, b_initializer = \
-                ['eval_net_params', tf.GraphKeys.GLOBAL_VARIABLES], \
+                [self.modelname+'/eval_net_params', tf.GraphKeys.GLOBAL_VARIABLES], \
                 tf.random_normal_initializer(0., 0.1), tf.constant_initializer(0.1)  # config of layers
             self.q_eval = build_layers(self.s, c_names, w_initializer, b_initializer)
 
         # ------------------ build target_net ------------------
         with tf.variable_scope('target_net'):
             # c_names(collections_names) are the collections to store variables
-            c_names = ['target_net_params', tf.GraphKeys.GLOBAL_VARIABLES]
+            c_names = [self.modelname+'/target_net_params', tf.GraphKeys.GLOBAL_VARIABLES]
             q_next = build_layers(self.s_, c_names, w_initializer, b_initializer)
             self.q_next = q_next + self.BaseScore
             #print(self.q_next.shape)
@@ -302,11 +305,14 @@ class DuelingDQN:
         return outidx, legalOut[outidx]
 
     def _replace_target_params(self):
-        t_params = tf.get_collection('target_net_params')
-        e_params = tf.get_collection('eval_net_params')
-        self.sess.run([tf.assign(t, e) for t, e in zip(t_params, e_params)])
+        e_params_vals = self.sess.run(self.e_params)
+        #print(self.e_params)
+        #print(e_params_vals)
+        self.sess.run([tf.assign(t, e) for t, e in zip(self.t_params, e_params_vals)])
     
     def learn(self,iskickers=False):
+        #print(self.sess.run(self.t_params[0]))
+        #print(self.sess.run(self.e_params[0]))
         if self.learn_step_counter % self.replace_target_iter == 0:
             self._replace_target_params()
             print('\ntarget_params_replaced\n')
@@ -335,8 +341,8 @@ class DuelingDQN:
                                                      self.r: inr,
                                                      self.s_: ins_,
                                                      self.action_possible: inaction_possible})
-        print(qt)
-        print(qe)
+        #print(qt)
+        #print(qe)
         print(abs_errors)'''
         
         _,loss = self.sess.run([self._train_op,self.loss],
@@ -381,7 +387,7 @@ class PlayModel(DuelingDQN):
 
     def __init__(self,modelname,sess,player):
         self.player = player
-        super(PlayModel, self).__init__(105+364,364,modelname,sess,memory_size=3200,batch_size=128,e_greedy_increment=0.9/2e5)
+        super(PlayModel, self).__init__(105+364,364,modelname,sess,memory_size=640,batch_size=32,e_greedy_increment=0.9/2e5)
         self.episodeTemp = []
 
     @staticmethod
@@ -553,7 +559,7 @@ class PlayModel(DuelingDQN):
     def storeSamples(self,netinput,action,allonehot):
         actidx = PlayModel.cardPs2idx(Hand.getCardPoint(action))
         hand = Hand(action)
-        self.episodeTemp.append([netinput,actidx,hand.getHandScore(),allonehot])
+        self.episodeTemp.append([netinput,actidx,0,allonehot])
 
     def finishEpisode(self,score,istrain=True):      
         #print("Player %d add to the train batch"%(self.player))
