@@ -10,8 +10,8 @@ from DQNModel import PlayModel, KickersModel
 def create_player(id,playmodel,kickersmodel,data,mode="Train"):
     player = ftl_bot.FTLBot(playmodel, kickersmodel, data, "Judge")
     if mode == "Test":
-        if id == 0:
-            player = ftl_bot.FTLBot(playmodel, kickersmodel, data, "Judge", True)
+        #if id == 0:
+        player = ftl_bot.FTLBot(playmodel, kickersmodel, data, "Judge", True)
     
     return player
 
