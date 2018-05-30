@@ -143,7 +143,7 @@ class DuelingDQN:
             modelname,
             sess,
             learning_rate=1e-4,
-            reward_decay=0.98,
+            reward_decay=0.95,
             e_greedy=0.95,
             replace_target_iter=500,
             memory_size=3200,
@@ -659,7 +659,7 @@ class KickersModel(DuelingDQN):
                                                                  model.action_possible: tdata[:,model.n_features+1:]})
                 #print(tvals)
                 for i,idx in enumerate(targetidx[p]):
-                    data[idx][self.n_features+1] = tvals[i]
+                    data[idx][self.n_features+1] = tvals[i] * self.gamma
                     #print(data[idx].tolist())
             
             # learn
