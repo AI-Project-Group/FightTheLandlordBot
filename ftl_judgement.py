@@ -121,7 +121,7 @@ class FTLJudgement:
             turnscores[playerID] = playmodel[playerID].finishEpisode(score[playerID],mode=="Train")
             #playmodel[playerID].finishEpisode(turnscores[playerID], nowep>1000)
 
-        return winner,self.cardTable
+        return winner,score,self.cardTable
     
     def getFinalScore(self,winner,score):
         farmerScore = score[1] + score[2]
