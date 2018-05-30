@@ -144,8 +144,8 @@ class DuelingDQN:
             sess,
             learning_rate=1e-4,
             reward_decay=0.98,
-            e_greedy=0.9,
-            replace_target_iter=100,
+            e_greedy=0.95,
+            replace_target_iter=500,
             memory_size=3200,
             batch_size=128,
             e_greedy_increment=None,
@@ -384,7 +384,7 @@ class PlayModel(DuelingDQN):
 
     def __init__(self,modelname,sess,player):
         self.player = player
-        super(PlayModel, self).__init__(105+364,364,modelname,sess,memory_size=640,batch_size=32,e_greedy_increment=0.9/2e5)
+        super(PlayModel, self).__init__(105+364,364,modelname,sess,memory_size=6400,batch_size=64,e_greedy_increment=0.95/2e5)
         self.episodeTemp = []
 
     @staticmethod
@@ -583,7 +583,7 @@ class PlayModel(DuelingDQN):
 class KickersModel(DuelingDQN):
     
     def __init__(self,modelname,sess):
-        super(KickersModel, self).__init__(105+364+15,28,modelname,sess,memory_size=320,batch_size=16,e_greedy_increment=0.9/1e5)
+        super(KickersModel, self).__init__(105+364+15,28,modelname,sess,memory_size=320,batch_size=16,e_greedy_increment=0.95/1e5)
         self.episodeTemp = []
         tf.Graph().finalize()
     
