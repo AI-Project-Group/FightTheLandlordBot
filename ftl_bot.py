@@ -11,12 +11,12 @@ from Network import PlayModel
 
 # Initialization using the JSON input
 class FTLBot:
-    def __init__(self, playmodel,kickersmodel, data, dataType = "Judge", isrand=False):
+    def __init__(self, playmodel,kickersmodel, data, dataType = "Judge", norand=False):
         self.dataType = dataType
         self.playmodel = playmodel
         #self.valuemodel = valuemodel
         self.kickersmodel = kickersmodel
-        self.isrand = isrand
+        self.norand = norand
         if dataType == "JSON": # JSON req
             rawInput = json.loads(data)
             rawRequest = rawInput["requests"]
@@ -81,10 +81,7 @@ class FTLBot:
         net_input = self.playmodel.ch2input(sim.nowPlayer,sim.myCards,sim.publicCard,sim.history,sim.lastPlay,sim.lastLastPlay,one_hot_t)
         #print(net_input.shape)
         #print(net_input)
-        actidx,val = self.playmodel.get_action(net_input, one_hot_t)
-        if self.isrand:
-            idxs = [i for i,v in enumerate(one_hot_t) if v > 1e-6]
-            actidx = random.choice(idxs)
+        actidx,val = self.playmodel.get_action(net_input, one_hot_t,self.norand)
         choice = self.playmodel.idx2CardPs(actidx)
         #print(choice)
 
@@ -100,7 +97,7 @@ class FTLBot:
                 num *= 2
             kickers = []
             for _ in range(num):
-                actidx,val = self.kickersmodel.get_action(kickers_input,kickers_onehot)
+                actidx,val = self.kickersmodel.get_action(kickers_input,kickers_onehot,self.norand)
                 kickers.append(self.kickersmodel.idx2CardPs(actidx))
                 kidx = self.kickersmodel.cardPs2idx(kickers[-1])
                 kickers_onehot[kidx] = 0
