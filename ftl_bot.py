@@ -11,11 +11,12 @@ from Network import PlayModel
 
 # Initialization using the JSON input
 class FTLBot:
-    def __init__(self, playmodel,kickersmodel, data, dataType = "Judge"):
+    def __init__(self, playmodel,kickersmodel, data, dataType = "Judge", isrand=False):
         self.dataType = dataType
         self.playmodel = playmodel
         #self.valuemodel = valuemodel
         self.kickersmodel = kickersmodel
+        self.isrand = isrand
         if dataType == "JSON": # JSON req
             rawInput = json.loads(data)
             rawRequest = rawInput["requests"]
@@ -81,6 +82,9 @@ class FTLBot:
         #print(net_input.shape)
         #print(net_input)
         actidx,val = self.playmodel.get_action(net_input, one_hot_t)
+        if self.isrand:
+            idxs = [i for i,v in enumerate(one_hot_t) if v > 1e-6]
+            actidx = random.choice(idxs)
         choice = self.playmodel.idx2CardPs(actidx)
         #print(choice)
 

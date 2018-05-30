@@ -7,6 +7,16 @@ import random
 import tensorflow as tf
 from DQNModel import PlayModel, KickersModel
 
+def create_player(id,playmodel,kickersmodel,data,mode="Train"):
+    player = ftl_bot.FTLBot(playmodel, kickersmodel, data, "Judge")
+    if mode == "Test":
+        if id != 0:
+            player = ftl_bot.FTLBot(playmodel, kickersmodel, data, "Judge", True)
+    
+    return player
+        
+
+
 # Judge class for Fight The Landlord game
 class FTLJudgement:
 
@@ -44,16 +54,17 @@ class FTLJudgement:
             print("Turn %d: %s"%(self.nowTurn, text))
 
     # simulate the game process
-    def work(self,playmodel,kickersmodel,nowep):
+    def work(self, playmodel, kickersmodel, nowep, mode="Train"):
         isGameFinished = False
         score = [0,0,0]
+        winner = -1
         while not isGameFinished: # Looping
             self.nowTurn += 1;
             for playerID in range(3): # 3 players
                 data = {"ID": playerID, "nowTurn": self.nowTurn, "publicCard": self.publicCards}
                 data["history"] = self.playerHistory
                 data["deal"] = self.cardsPlayer[playerID]
-                player = ftl_bot.FTLBot(playmodel[playerID], kickersmodel, data, "Judge")
+                player = create_player(playerID, playmodel[playerID], kickersmodel, data, mode)
                 cardsPlayed = player.makeDecision()
                 self.log("Player %d [%d] card %s"%(playerID, \
                     len(self.nowCardsPlayer[playerID]), \
@@ -97,21 +108,22 @@ class FTLJudgement:
                 if not len(self.nowCardsPlayer[playerID]): # Finished
                     result = self.report(playerID, score)
                     isGameFinished = True
+                    winner = playerID
                     break
             if self.isDebug:
                 print(score)
                 input("Press <ENTER> to continue...")
 
         self.log("Game finished")
-        kickersmodel.finishEpisode(playmodel,score)
+        kickersmodel.finishEpisode(playmodel,score,mode=="Train")
         turnscores = [[],[],[]]
         # @TODO Add Model Training        
         for playerID in range(3): # discard cards to table
             self.cardTable.extend(self.nowCardsPlayer[playerID])
-            turnscores[playerID] = playmodel[playerID].finishEpisode(score[playerID])
+            turnscores[playerID] = playmodel[playerID].finishEpisode(score[playerID],mode=="Train")
             #playmodel[playerID].finishEpisode(turnscores[playerID], nowep>1000)
 
-        return self.cardTable
+        return winner,self.cardTable
     
     def getFinalScore(self,winner,score):
         farmerScore = score[1] + score[2]
@@ -129,21 +141,3 @@ class FTLJudgement:
         # Score calculation
         score = self.getFinalScore(winner,score)
         print("Final Score:"+str(score))
-        
-if __name__ == "__main__":
-    config = tf.ConfigProto()
-    config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
-    sess = tf.InteractiveSession(config=config)
-    playmodel = [PlayModel("play"+str(i),sess,i) for i in range(3)]
-    #playmodel = [PlayModel("play"+str(i),sess,i,"data/FTL/test.ckpt") for i in range(3)]
-    kickersmodel = KickersModel("kick",sess)
-    tf.global_variables_initializer().run()
-    kickersmodel.load_model("data/FTL/","DQN")
-    episode = 1
-    while True:
-        print("Train Episode: %d"%(episode))
-        ftlJudge = FTLJudgement([], False)
-        ftlJudge.work(playmodel,kickersmodel,episode)
-        if episode % 1000 == 0:
-            kickersmodel.save_model("data/FTL/","DQN")
-        episode += 1

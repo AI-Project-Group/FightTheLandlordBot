@@ -621,7 +621,7 @@ class KickersModel(DuelingDQN):
         actidx = self.cardPs2idx(kickers)
         self.episodeTemp.append([netinput, playerID, actidx, turn])
         
-    def finishEpisode(self,playmodels,scores):
+    def finishEpisode(self,playmodels,scores,istrain=True):
         for tmp in self.episodeTemp:
             p = tmp[1]
             t = tmp[3]
@@ -635,7 +635,7 @@ class KickersModel(DuelingDQN):
         #print(self.memory.tree.tree)
         minp = np.min(self.memory.tree.tree)
         #print(minp)
-        if len(self.episodeTemp) != 0 and minp > 0:
+        if istrain and len(self.episodeTemp) != 0 and minp > 0:
             print("Train for KickersModel...")
             
             # update reward
