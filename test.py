@@ -4,7 +4,7 @@ import random
 from ftl_judgement import FTLJudgement
 from DQNModel import PlayModel, KickersModel
 
-MaxEpisode = 200
+MaxEpisode = 1000
 
 if __name__ == "__main__":
     lordg = tf.Graph()
