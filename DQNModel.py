@@ -143,7 +143,7 @@ class DuelingDQN:
             modelname,
             sess,
             learning_rate=1e-4,
-            reward_decay=0.95,
+            reward_decay=0.98,
             e_greedy=0.95,
             replace_target_iter=500,
             memory_size=3200,
@@ -244,7 +244,7 @@ class DuelingDQN:
             # c_names(collections_names) are the collections to store variables
             c_names, w_initializer, b_initializer = \
                 [self.modelname+'/eval_net_params', tf.GraphKeys.GLOBAL_VARIABLES], \
-                tf.random_normal_initializer(0., 0.1), tf.constant_initializer(0.1)  # config of layers
+                tf.random_normal_initializer(0.01, 0.01), tf.constant_initializer(0.01)  # config of layers
             self.q_eval = build_layers(self.s, c_names, w_initializer, b_initializer)
 
         # ------------------ build target_net ------------------
@@ -339,10 +339,10 @@ class DuelingDQN:
                                                      self.a: ina,
                                                      self.r: inr,
                                                      self.s_: ins_,
-                                                     self.action_possible: inaction_possible})
+                                                     self.action_possible: inaction_possible})'''
         #print(qt)
         #print(qe)
-        print(abs_errors)'''
+        #print(abs_errors)
         
         _,loss = self.sess.run([self._train_op,self.loss],
                           feed_dict={self.s: ins, self.a: ina, self.r: inr, self.s_: ins_, 
@@ -384,7 +384,7 @@ class PlayModel(DuelingDQN):
 
     def __init__(self,modelname,sess,player):
         self.player = player
-        super(PlayModel, self).__init__(105+364,364,modelname,sess,memory_size=6400,batch_size=64,e_greedy_increment=0.95/2e5)
+        super(PlayModel, self).__init__(105+364,364,modelname,sess,memory_size=6400,batch_size=64,e_greedy_increment=0.95/2e5,BaseScore=0)
         self.episodeTemp = []
 
     @staticmethod
@@ -583,7 +583,7 @@ class PlayModel(DuelingDQN):
 class KickersModel(DuelingDQN):
     
     def __init__(self,modelname,sess):
-        super(KickersModel, self).__init__(105+364+15,28,modelname,sess,memory_size=320,batch_size=16,e_greedy_increment=0.95/1e5)
+        super(KickersModel, self).__init__(105+364+15,28,modelname,sess,memory_size=320,batch_size=16,e_greedy_increment=0.95/1e5,BaseScore=0)
         self.episodeTemp = []
         tf.Graph().finalize()
     

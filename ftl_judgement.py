@@ -124,13 +124,15 @@ class FTLJudgement:
         return winner,score,self.cardTable
     
     def getFinalScore(self,winner,score):
-        farmerScore = score[1] + score[2]
-        dis = score[0] - farmerScore / 2.0
+        farmerScore = (score[1] + score[2]) / 2.0
+        #dis = score[0] - farmerScore / 2.0
+        score[1] = score[2] = 50 - 0.5 * score[0] + farmerScore
+        score[0] = 50 + score[0] - 0.5 * farmerScore
         if winner == 0:
-            score[0] = 100 + dis
+            score[0] += 100
         else:
-            score[0] = -100 + dis
-        score[1] = score[2] = -score[0]
+            score[1] += 100
+            score[2] = score[1]
         return score      
 
     # Report the result
