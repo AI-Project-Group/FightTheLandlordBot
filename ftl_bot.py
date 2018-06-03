@@ -279,6 +279,10 @@ class FTLBot:
                         allkickers = psolos
                     else:
                         allkickers = ppairs
+                    pointU = list(set(tmphand))
+                    for p in pointU:
+                        allkickers.remove([p])
+                        allkickers.remove([p]*2)
             kickers_input = self.kickersmodel.ch2input(net_input,tmphand)
             kickers_onehot = self.kickersmodel.allkickers2onehot(allkickers)
             num = choice[0]['chain']

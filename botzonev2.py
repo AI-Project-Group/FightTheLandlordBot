@@ -969,7 +969,7 @@ class FTLBot:
 
     def makeData(self, data,val=0):
         if self.dataType == "JSON":
-            return json.dumps({"response": data,"debug":{"val":str(val)}})
+            return json.dumps({"response": data,"debug":{"val":val}})
         elif self.dataType == "Judge":
             return data
             
@@ -1183,6 +1183,12 @@ class FTLBot:
                         allkickers = psolos
                     else:
                         allkickers = ppairs
+                    pointU = list(set(tmphand))
+                    for p in pointU:
+                        if [p] in allkickers:
+                            allkickers.remove([p])
+                        if [p]*2 in allkickers:
+                            allkickers.remove([p]*2)
             kickers_input = self.kickersmodel.ch2input(net_input,tmphand)
             kickers_onehot = self.kickersmodel.allkickers2onehot(allkickers)
             num = choice[0]['chain']
