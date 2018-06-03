@@ -967,9 +967,9 @@ class FTLBot:
             sim.setHistory(data["history"])
             self.simulator = sim
 
-    def makeData(self, data):
+    def makeData(self, data,val=0):
         if self.dataType == "JSON":
-            return json.dumps({"response": data})
+            return json.dumps({"response": data,"debug":{"val":str(val)}})
         elif self.dataType == "Judge":
             return data
             
