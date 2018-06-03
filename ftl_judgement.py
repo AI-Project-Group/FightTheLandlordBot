@@ -7,11 +7,11 @@ import random
 import tensorflow as tf
 from DQNModel import PlayModel, KickersModel
 
-def create_player(id,playmodel,kickersmodel,data,mode="Train"):
+def create_player(id,playmodel,kickersmodel,data,mode="Train",addHuman=[False,False,False]):
     player = ftl_bot.FTLBot(playmodel, kickersmodel, data, "Judge")
     if mode == "Test":
         #if id == 0:
-        player = ftl_bot.FTLBot(playmodel, kickersmodel, data, "Judge", True)
+        player = ftl_bot.FTLBot(playmodel, kickersmodel, data, "Judge", True, addHuman[id])
     
     return player
 
@@ -52,7 +52,7 @@ class FTLJudgement:
             print("Turn %d: %s"%(self.nowTurn, text))
 
     # simulate the game process
-    def work(self, playmodel, kickersmodel, nowep, mode="Train"):
+    def work(self, playmodel, kickersmodel, nowep, mode="Train",addHuman=[False,False,False]):
         isGameFinished = False
         score = [0,0,0]
         winner = -1
@@ -62,7 +62,7 @@ class FTLJudgement:
                 data = {"ID": playerID, "nowTurn": self.nowTurn, "publicCard": self.publicCards}
                 data["history"] = self.playerHistory
                 data["deal"] = self.cardsPlayer[playerID]
-                player = create_player(playerID, playmodel[playerID], kickersmodel, data, mode)
+                player = create_player(playerID, playmodel[playerID], kickersmodel, data, mode, addHuman)
                 cardsPlayed = player.makeDecision()
                 self.log("Player %d [%d] card %s"%(playerID, \
                     len(self.nowCardsPlayer[playerID]), \

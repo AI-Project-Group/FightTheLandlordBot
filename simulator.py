@@ -118,6 +118,7 @@ class Hand:
             pointUCnt = [point.count(p) for p in pointU] # count the number of each point
             pattern = list(set(pointUCnt)) # get the pattern of point
             pattern.sort()
+            #print(pattern)
             # distinguish the pattern
             if pattern == [1]: # Solo chain
                 self.type = "Solo"
@@ -332,6 +333,7 @@ class CardInterpreter:
                     allHands[-1].extend([c]*3)
             if trioChainCnt[i] >= 2: # able to play
                 for length in range(2, trioChainCnt[i]+1):
+                    allHands.append(list(range(c-length+1, c+1))*3)
                     for knum in range(1,3):
                         kickers = CardInterpreter.getKickers(cards, knum, list(range(c-length+1, c+1)))
                         if len(kickers) >= length:
