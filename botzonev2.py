@@ -19,7 +19,7 @@ class DuelingDQN:
             e_greedy_increment=None,
             dueling=True,
             output_graph=False,
-            BaseScore=200,
+            BaseScore=0,
     ):
         self.n_actions = n_actions
         self.n_features = n_features
@@ -192,20 +192,6 @@ class DuelingDQN:
             inr = inr + self.BaseScore*self.gamma
             ins_ = np.zeros((self.batch_size,self.n_features))
             inaction_possible = np.zeros((self.batch_size,self.n_actions))
-        '''print(ins)
-        print(ina)
-        print(inr)
-        print(ins_)
-        print(inaction_possible)'''
-        '''qt,qe,abs_errors = self.sess.run([self.q_target,self.q_eval_wrt_a,self.abs_errors],
-                                          feed_dict={self.s: ins,
-                                                     self.a: ina,
-                                                     self.r: inr,
-                                                     self.s_: ins_,
-                                                     self.action_possible: inaction_possible})
-        print(qt)
-        print(qe)
-        print(abs_errors)'''
         
         _,loss = self.sess.run([self._train_op,self.loss],
                           feed_dict={self.s: ins, self.a: ina, self.r: inr, self.s_: ins_, 
@@ -417,33 +403,6 @@ class PlayModel(DuelingDQN):
             res.append({"kickerNum":2,"chain":chain,"type":"Four"})
             res.extend(list(range(primal,primal+chain)) * 4)            
         return res        
-
-    def storeSamples(self,netinput,action,allonehot):
-        actidx = PlayModel.cardPs2idx(Hand.getCardPoint(action))
-        hand = Hand(action)
-        self.episodeTemp.append([netinput,actidx,hand.getHandScore(),allonehot])
-
-    def finishEpisode(self,score,istrain=True):      
-        #print("Player %d add to the train batch"%(self.player))
-        nlen = len(self.episodeTemp)
-        #print(nlen)
-        for i in range(nlen,0,-1):
-            data = self.episodeTemp[i-1]
-            if i == nlen:
-                self.store_transition(data[0],data[1],data[2]+score+self.BaseScore*self.gamma,np.zeros(self.n_features),np.zeros(self.n_actions))
-            else:
-                ndata = self.episodeTemp[i]
-                self.store_transition(data[0],data[1],data[2],ndata[0],ndata[3])
-        
-        #print(self.memory.tree.tree)
-        minp = np.min(self.memory.tree.tree)
-        #print(minp)
-        if istrain and minp > 0:
-            print("Train for PlayModel Player: %d" % self.player)
-            loss = self.learn()
-            print("learn_step_counter:"+str(self.learn_step_counter)+" loss:"+str(loss)+" epsilon:"+str(self.epsilon)+" root_p:"+str(self.memory.tree.root_priority))
-        
-        self.episodeTemp = []
         
 class KickersModel(DuelingDQN):
     
@@ -480,57 +439,6 @@ class KickersModel(DuelingDQN):
             return [idx]
         else:
             return [idx-15]*2
-            
-    def storeSamples(self, netinput, playerID, kickers, turn):
-        actidx = self.cardPs2idx(kickers)
-        self.episodeTemp.append([netinput, playerID, actidx, turn])
-        
-    def finishEpisode(self,playmodels,scores):
-        for tmp in self.episodeTemp:
-            p = tmp[1]
-            t = tmp[3]
-            datatemp = playmodels[p].episodeTemp
-            if t >= len(datatemp)-1:
-                self.store_transition(tmp[0], tmp[2], 0, np.zeros(playmodels[p].n_features), np.zeros(playmodels[p].n_actions), p, scores[p]+self.BaseScore*self.gamma)
-            else:
-                self.store_transition(tmp[0], tmp[2], 0, datatemp[t+1][0], datatemp[t+1][3], p, 0)
-        
-        #print(self.episodeTemp)
-        #print(self.memory.tree.tree)
-        minp = np.min(self.memory.tree.tree)
-        #print(minp)
-        if len(self.episodeTemp) != 0 and minp > 0:
-            print("Train for KickersModel...")
-            
-            # update reward
-            data = self.memory.tree.data
-            targetd = [[],[],[]]
-            targetidx = [[],[],[]]
-            #print(data)
-            for i,d in enumerate(data):
-                player = int(d[self.n_features+2])
-                targetidx[player].append(int(i))
-                targetd[player].append(d[self.n_features+3:])
-            
-            for p in range(3):
-                if len(targetidx[p]) == 0:
-                    continue
-                model = playmodels[p]
-                tdata = np.vstack(targetd[p])
-                #print(tdata[:,0])
-                tvals = self.sess.run(model.q_target, feed_dict={model.s_: tdata[:, 1:model.n_features+1], 
-                                                                 model.r: tdata[:,0],
-                                                                 model.action_possible: tdata[:,model.n_features+1:]})
-                #print(tvals)
-                for i,idx in enumerate(targetidx[p]):
-                    data[idx][self.n_features+1] = tvals[i]
-                    #print(data[idx].tolist())
-            
-            # learn
-            loss = self.learn(True)
-            print("learn_step_counter:"+str(self.learn_step_counter)+" loss:"+str(loss)+" epsilon:"+str(self.epsilon)+" root_p:"+str(self.memory.tree.root_priority))
-        
-        self.episodeTemp = []
         
 class FTLSimulator:
 
@@ -647,6 +555,7 @@ class Hand:
             pointUCnt = [point.count(p) for p in pointU] # count the number of each point
             pattern = list(set(pointUCnt)) # get the pattern of point
             pattern.sort()
+            #print(pattern)
             # distinguish the pattern
             if pattern == [1]: # Solo chain
                 self.type = "Solo"
@@ -709,26 +618,26 @@ class Hand:
         elif self.type == "Solo" and self.chain == 1:
             score = 1
         elif self.type == "Pair" and self.chain == 1:
-            score = 2
+            score = 2 #+ 1
         elif self.type == "Trio" and self.chain == 1:
-            score = 4
+            score = 4 #+ 2
         elif self.type == "Solo" and self.chain >= 5:
-            score = 6
+            score = 6 #+ self.chain
         elif self.type == "Pair" and self.chain >= 3:
-            score = 6
+            score = 6 #+ self.chain * 2
         elif self.type == "Trio" and self.chain >= 2:
-            score = 8
+            score = 8 #+ self.chain * 3
         elif self.type == "Four" and self.chain == 1:
-            score = 8
+            score = 8 #+ self.chain * 4
         elif self.type == "Bomb":
-            score = 10
+            score = 10 #+ 10
         elif self.type == "Four" and self.chain == 2:
-            score = 10
+            score = 10 #+ self.chain * 4
         elif self.type == "Rocket":
-            score = 16
+            score = 16 #+ 16
         elif self.type == "Four" and self.chain > 2:
-            score = 20
-        return score #/ 100.0
+            score = 20 #+ self.chain * 4
+        return score * 2 #/ 100.0
 
 
 class CardInterpreter:
@@ -979,9 +888,8 @@ class FTLBot:
         initpairs = copy.deepcopy(pairs)
         initsolos.sort()
         initpairs.sort()
-        tmpsknum = sknum[:]
-        tmpsknum.sort()
-        tmpsknum.reverse()
+        tmpsknum = copy.deepcopy(sknum)
+        tmpsknum.sort(key=lambda x:x[0],reverse=True)
         tmppknum = pknum[:]
         bval = 0
         success = True
@@ -999,12 +907,14 @@ class FTLBot:
                 success = False
                 break                        
             try:
-                for snum in tmpsknum:
+                for snum,cset in tmpsknum:
                     lastc = -1
                     for _ in range(snum):
-                        tmpc = tmpsolos[0][0]
-                        if tmpc == lastc:
-                            tmpc = tmpsolos[1][0]
+                        i = 0
+                        tmpc = tmpsolos[0][i]                        
+                        while tmpc == lastc or tmpc in cset:
+                            i += 1
+                            tmpc = tmpsolos[0][i]
                         lastc = tmpc
                         tmpsolos.remove([tmpc])
             except Exception as err:
@@ -1026,9 +936,9 @@ class FTLBot:
             else:
                 break
         if success:
-            return bval,initsolos,initpairs
+            return success,bval,initsolos,initpairs
         else:
-            return 10,initsolos,initpairs
+            return success,10,initsolos,initpairs
 
     @staticmethod
     def searchHuman(cards,sknum,pknum,bonus=0,selectHand=None):
@@ -1060,23 +970,18 @@ class FTLBot:
            possiblePlays.remove(p)
         for p in twos:
             possiblePlays.remove(p)
-        #print(possiblePlays)
-        #print(solos)
-        #print(pairs)
-        #print(bombs)
-        #print(twos)
-        #print(bombs)
         if len(possiblePlays) == 0:
             for p in pairs:
                 if p[0] == 12 and len(twos) != 0:continue
                 solos.remove([p[0]])
             for p in bombs:
                 solos.remove([p[0]])
-            val,solos,pairs = FTLBot.maxValueKickers(solos,pairs,sknum,pknum)
+            success,val,solos,pairs = FTLBot.maxValueKickers(solos,pairs,sknum,pknum)
             val += bonus
             #print(val)
             #print(val)
-            return val,[],solos,pairs,bombs
+            return success,val,[],solos,pairs,bombs
+        maxsuccess = False
         maxval = 0
         maxlist = []
         maxsolos = []
@@ -1086,7 +991,7 @@ class FTLBot:
         for p in possiblePlays:
             if selectHand is not None and p != selectHand:
                 continue
-            nsknum = sknum[:]
+            nsknum = copy.deepcopy(sknum)
             npknum = pknum[:]
             nbonus = bonus
             if isinstance(p[0],list):
@@ -1097,7 +1002,7 @@ class FTLBot:
                 else:
                     chain = 2*(lenc // 4)
                 if len(p[0][0]) == 1:
-                    nsknum.append(chain)
+                    nsknum.append([chain,list(set(tmpc))])
                 else:
                     npknum.append(chain)
             else:
@@ -1111,14 +1016,9 @@ class FTLBot:
                 nbonus += 90
             elif hand.type == "Trio":
                 nbonus += hand.chain*hand.chain
-            '''print(p)
-            print(tmpc)
-            print(nextcards)
-            print(nsknum)
-            print(npknum)
-            print(nbonus)'''
-            tval,tlist,tsolos,tparis,tbombs = FTLBot.searchHuman(nextcards,nsknum,npknum,nbonus)
+            success,tval,tlist,tsolos,tparis,tbombs = FTLBot.searchHuman(nextcards,nsknum,npknum,nbonus)
             if tval > maxval:
+                maxsuccess = success
                 maxval = tval
                 maxchoice = p
                 maxlist = tlist
@@ -1132,7 +1032,7 @@ class FTLBot:
             maxbombs.append(maxchoice[1:])
         else:
             maxlist.append(maxchoice)
-        return maxval,maxlist,maxsolos,maxpairs,maxbombs
+        return maxsuccess,maxval,maxlist,maxsolos,maxpairs,maxbombs
     
     def isAddHuman(self):
         if self.addHuman:
@@ -1144,41 +1044,33 @@ class FTLBot:
         possiblePlays = []
         usedHuman = False
         if self.addHuman and lastHand.type == "Pass":
-            maxval,pPlays,psolos,ppairs,pbombs = self.searchHuman(self.simulator.myCards,[],[])
-            possiblePlays = pPlays
-            #print("Search Human!!!")
-            #print(possiblePlays)
+            success,maxval,pPlays,psolos,ppairs,pbombs = self.searchHuman(self.simulator.myCards,[],[])
+            if success:
+                possiblePlays = pPlays
         if possiblePlays == []:
             possiblePlays = CardInterpreter.splitCard(self.simulator.myCards, lastHand)
         else:
             usedHuman = True
-        #print(possiblePlays)
 
-        # @TODO You need to modify the following part !!
-        # A little messed up ...
         if not len(possiblePlays):
             return self.makeData([])
         
         sim = self.simulator
         one_hot_t = self.playmodel.hand2one_hot(possiblePlays)
         net_input = self.playmodel.ch2input(sim.nowPlayer,sim.myCards,sim.publicCard,sim.history,sim.lastPlay,sim.lastLastPlay,one_hot_t)
-        #print(net_input.shape)
-        #print(net_input)
         actidx,val = self.playmodel.get_action(net_input, one_hot_t,self.norand)
         choice = self.playmodel.idx2CardPs(actidx)
-        #print(choice)
 
         # Add kickers, if first element is dict, the choice must has some kickers
-        # @TODO get kickers from kickers model
+        # get kickers from kickers model
         if choice and isinstance(choice[0],dict):
             tmphand = choice[1:]
             allkickers = CardInterpreter.getKickers(sim.myCards, choice[0]["kickerNum"], list(set(tmphand)))
             if self.addHuman:
                 tmpchoice = choice[:]
                 tmpchoice[0] = allkickers
-                #print(tmpchoice)
-                maxval,pPlays,psolos,ppairs,_ = self.searchHuman(sim.myCards,[],[],0,tmpchoice)
-                if maxval > 50:
+                success,maxval,pPlays,psolos,ppairs,_ = self.searchHuman(sim.myCards,[],[],0,tmpchoice)
+                if success:
                     if choice[0]["kickerNum"] == 1:
                         allkickers = psolos
                     else:
@@ -1202,13 +1094,8 @@ class FTLBot:
                 kickers_onehot[kidx] = 0
             for k in kickers:
                 tmphand.extend(k)
-                #self.kickersmodel.storeSamples(kickers_input,sim.nowPlayer,k,sim.nowTurn)
-            #print(self.kickersmodel.episodeTemp)
             choice = tmphand
-        cardChoice = CardInterpreter.selectCardByHand(self.simulator.myCards, choice)
-        
-        #self.playmodel.storeSamples(net_input,cardChoice, len(possiblePlays) == 1 and choice == [])
-        #self.playmodel.storeSamples(net_input,cardChoice,one_hot_t)
+        cardChoice = CardInterpreter.selectCardByHand(self.simulator.myCards, choice)       
 
         # You need to modify the previous part !!
         return self.makeData(cardChoice,val)
