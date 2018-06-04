@@ -145,10 +145,10 @@ class DuelingDQN:
             transition = np.hstack((s, [a, r], [player,initr], s_, actions_one_hot))
         self.memory.store(transition)
     
-    def get_action(self, netinput, actions_one_hot, norand=False):
-        output = self.q_eval.eval(feed_dict={self.s:[netinput]})
-        output = output.flatten() + self.BaseScore
-        #print(output)
+    def get_action(self, netinput, actions_one_hot, norand=False, addNonZero=0):
+        output = self.sess.run(self.q_eval,feed_dict={self.s:[netinput]})
+        output = output.flatten() + self.BaseScore + addNonZero
+        output[0] -= addNonZero
         legalOut = np.multiply(output, actions_one_hot)
         #print(legalOut)
         minval = np.min(legalOut)
