@@ -4,7 +4,16 @@
 import simulator
 import ftl_bot
 import random
-from PolicyNetwork import PlayModel
+import tensorflow as tf
+from DQNModel import PlayModel, KickersModel
+
+def create_player(id,playmodel,kickersmodel,data,mode="Train",addHuman=[False,False,False]):
+    player = ftl_bot.FTLBot(playmodel, kickersmodel, data, "Judge")
+    if mode == "Test":
+        #if id == 0:
+        player = ftl_bot.FTLBot(playmodel, kickersmodel, data, "Judge", True, addHuman[id])
+    
+    return player
 
 # Judge class for Fight The Landlord game
 class FTLJudgement:
@@ -43,16 +52,17 @@ class FTLJudgement:
             print("Turn %d: %s"%(self.nowTurn, text))
 
     # simulate the game process
-    def work(self,playmodel):
+    def work(self, playmodel, kickersmodel, nowep, mode="Train",addHuman=[False,False,False]):
         isGameFinished = False
         score = [0,0,0]
+        winner = -1
         while not isGameFinished: # Looping
             self.nowTurn += 1;
             for playerID in range(3): # 3 players
                 data = {"ID": playerID, "nowTurn": self.nowTurn, "publicCard": self.publicCards}
                 data["history"] = self.playerHistory
                 data["deal"] = self.cardsPlayer[playerID]
-                player = ftl_bot.FTLBot(playmodel, data, "Judge")
+                player = create_player(playerID, playmodel[playerID], kickersmodel, data, mode, addHuman)
                 cardsPlayed = player.makeDecision()
                 self.log("Player %d [%d] card %s"%(playerID, \
                     len(self.nowCardsPlayer[playerID]), \
@@ -86,8 +96,6 @@ class FTLJudgement:
                     break
 
                 # LEGAL
-                net_input = playmodel.ch2input(playerID,self.nowCardsPlayer[playerID],self.publicCards,self.playerHistory,self.last2Plays[1],self.last2Plays[0])
-                playmodel.storeSamples(net_input,playerID,cardsPlayed)
                 self.last2Plays[0] = self.last2Plays[1]
                 self.last2Plays[1] = cardsPlayed
                 for c in cardsPlayed:
@@ -98,26 +106,33 @@ class FTLJudgement:
                 if not len(self.nowCardsPlayer[playerID]): # Finished
                     result = self.report(playerID, score)
                     isGameFinished = True
+                    winner = playerID
                     break
-            print(score)
-            input("Press <ENTER> to continue...")
+            if self.isDebug:
+                print(score)
+                input("Press <ENTER> to continue...")
 
         self.log("Game finished")
+        kickersmodel.finishEpisode(playmodel,score,mode=="Train")
+        turnscores = [[],[],[]]
         # @TODO Add Model Training        
         for playerID in range(3): # discard cards to table
             self.cardTable.extend(self.nowCardsPlayer[playerID])
-        playmodel.finishEpisode(score)
+            turnscores[playerID] = playmodel[playerID].finishEpisode(score[playerID],mode=="Train")
+            #playmodel[playerID].finishEpisode(turnscores[playerID], nowep>1000)
 
-        return self.cardTable
+        return winner,score,self.cardTable
     
     def getFinalScore(self,winner,score):
-        farmerScore = score[1] + score[2]
+        farmerScore = (score[1] + score[2]) / 2.0
+        #dis = score[0] - farmerScore / 2.0
+        score[1] = score[2] = 50 - 0.5 * score[0] + farmerScore
+        score[0] = 50 + score[0] - 0.5 * farmerScore
         if winner == 0:
-            score[0] = 2 + score[0] / 100.0
-            score[1] = score[2] = farmerScore / 200.0
+            score[0] += 100
         else:
-            score[0] /= 100.0
-            score[1] = score[2] = 2 + farmerScore / 200.0
+            score[1] += 100
+            score[2] = score[1]
         return score      
 
     # Report the result
@@ -126,9 +141,3 @@ class FTLJudgement:
         # Score calculation
         score = self.getFinalScore(winner,score)
         print("Final Score:"+str(score))
-        
-if __name__ == "__main__":
-    testCards = []#list(range(0, 54))
-    ftlJudge = FTLJudgement(testCards, True)
-    playmodel = PlayModel("test","data/FTL/test.ckpt")
-    ftlJudge.work(playmodel)

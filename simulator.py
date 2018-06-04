@@ -118,6 +118,7 @@ class Hand:
             pointUCnt = [point.count(p) for p in pointU] # count the number of each point
             pattern = list(set(pointUCnt)) # get the pattern of point
             pattern.sort()
+            #print(pattern)
             # distinguish the pattern
             if pattern == [1]: # Solo chain
                 self.type = "Solo"
@@ -180,26 +181,26 @@ class Hand:
         elif self.type == "Solo" and self.chain == 1:
             score = 1
         elif self.type == "Pair" and self.chain == 1:
-            score = 2
+            score = 2 #+ 1
         elif self.type == "Trio" and self.chain == 1:
-            score = 4
+            score = 4 #+ 2
         elif self.type == "Solo" and self.chain >= 5:
-            score = 6
+            score = 6 #+ self.chain
         elif self.type == "Pair" and self.chain >= 3:
-            score = 6
+            score = 6 #+ self.chain * 2
         elif self.type == "Trio" and self.chain >= 2:
-            score = 8
+            score = 8 #+ self.chain * 3
         elif self.type == "Four" and self.chain == 1:
-            score = 8
+            score = 8 #+ self.chain * 4
         elif self.type == "Bomb":
-            score = 10
+            score = 10 #+ 10
         elif self.type == "Four" and self.chain == 2:
-            score = 10
+            score = 10 #+ self.chain * 4
         elif self.type == "Rocket":
-            score = 16
+            score = 16 #+ 16
         elif self.type == "Four" and self.chain > 2:
-            score = 20
-        return score #/ 100.0
+            score = 20 #+ self.chain * 4
+        return score * 2 #/ 100.0
 
 
 class CardInterpreter:
@@ -332,6 +333,7 @@ class CardInterpreter:
                     allHands[-1].extend([c]*3)
             if trioChainCnt[i] >= 2: # able to play
                 for length in range(2, trioChainCnt[i]+1):
+                    allHands.append(list(range(c-length+1, c+1))*3)
                     for knum in range(1,3):
                         kickers = CardInterpreter.getKickers(cards, knum, list(range(c-length+1, c+1)))
                         if len(kickers) >= length:
