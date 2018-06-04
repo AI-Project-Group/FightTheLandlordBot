@@ -75,9 +75,8 @@ class FTLBot:
         initpairs = copy.deepcopy(pairs)
         initsolos.sort()
         initpairs.sort()
-        tmpsknum = sknum[:]
-        tmpsknum.sort()
-        tmpsknum.reverse()
+        tmpsknum = copy.deepcopy(sknum)
+        tmpsknum.sort(key=lambda x:x[0],reverse=True)
         tmppknum = pknum[:]
         bval = 0
         success = True
@@ -95,12 +94,14 @@ class FTLBot:
                 success = False
                 break                        
             try:
-                for snum in tmpsknum:
+                for snum,cset in tmpsknum:
                     lastc = -1
                     for _ in range(snum):
-                        tmpc = tmpsolos[0][0]
-                        if tmpc == lastc:
-                            tmpc = tmpsolos[1][0]
+                        i = 0
+                        tmpc = tmpsolos[0][i]                        
+                        while tmpc == lastc or tmpc in cset:
+                            i += 1
+                            tmpc = tmpsolos[0][i]
                         lastc = tmpc
                         tmpsolos.remove([tmpc])
             except Exception as err:
@@ -122,9 +123,9 @@ class FTLBot:
             else:
                 break
         if success:
-            return bval,initsolos,initpairs
+            return success,bval,initsolos,initpairs
         else:
-            return 10,initsolos,initpairs
+            return success,10,initsolos,initpairs
 
     @staticmethod
     def searchHuman(cards,sknum,pknum,bonus=0,selectHand=None):
@@ -168,11 +169,12 @@ class FTLBot:
                 solos.remove([p[0]])
             for p in bombs:
                 solos.remove([p[0]])
-            val,solos,pairs = FTLBot.maxValueKickers(solos,pairs,sknum,pknum)
+            success,val,solos,pairs = FTLBot.maxValueKickers(solos,pairs,sknum,pknum)
             val += bonus
             #print(val)
             #print(val)
-            return val,[],solos,pairs,bombs
+            return success,val,[],solos,pairs,bombs
+        maxsuccess = False
         maxval = 0
         maxlist = []
         maxsolos = []
@@ -182,7 +184,7 @@ class FTLBot:
         for p in possiblePlays:
             if selectHand is not None and p != selectHand:
                 continue
-            nsknum = sknum[:]
+            nsknum = copy.deepcopy(sknum)
             npknum = pknum[:]
             nbonus = bonus
             if isinstance(p[0],list):
@@ -193,7 +195,7 @@ class FTLBot:
                 else:
                     chain = 2*(lenc // 4)
                 if len(p[0][0]) == 1:
-                    nsknum.append(chain)
+                    nsknum.append([chain,list(set(tmpc))])
                 else:
                     npknum.append(chain)
             else:
@@ -213,8 +215,9 @@ class FTLBot:
             print(nsknum)
             print(npknum)
             print(nbonus)'''
-            tval,tlist,tsolos,tparis,tbombs = FTLBot.searchHuman(nextcards,nsknum,npknum,nbonus)
+            success,tval,tlist,tsolos,tparis,tbombs = FTLBot.searchHuman(nextcards,nsknum,npknum,nbonus)
             if tval > maxval:
+                maxsuccess = success
                 maxval = tval
                 maxchoice = p
                 maxlist = tlist
@@ -228,7 +231,7 @@ class FTLBot:
             maxbombs.append(maxchoice[1:])
         else:
             maxlist.append(maxchoice)
-        return maxval,maxlist,maxsolos,maxpairs,maxbombs
+        return maxsuccess,maxval,maxlist,maxsolos,maxpairs,maxbombs
     
     def isAddHuman(self):
         if self.addHuman:
@@ -240,8 +243,9 @@ class FTLBot:
         possiblePlays = []
         usedHuman = False
         if self.addHuman and lastHand.type == "Pass":
-            maxval,pPlays,psolos,ppairs,pbombs = self.searchHuman(self.simulator.myCards,[],[])
-            possiblePlays = pPlays
+            success,maxval,pPlays,psolos,ppairs,pbombs = self.searchHuman(self.simulator.myCards,[],[])
+            if success:
+                possiblePlays = pPlays
             #print("Search Human!!!")
             #print(possiblePlays)
         if possiblePlays == []:
@@ -272,17 +276,18 @@ class FTLBot:
             if self.addHuman:
                 tmpchoice = choice[:]
                 tmpchoice[0] = allkickers
-                #print(tmpchoice)
-                maxval,pPlays,psolos,ppairs,_ = self.searchHuman(sim.myCards,[],[],0,tmpchoice)
-                if maxval > 50:
+                success,maxval,pPlays,psolos,ppairs,_ = self.searchHuman(sim.myCards,[],[],0,tmpchoice)
+                if success:
                     if choice[0]["kickerNum"] == 1:
                         allkickers = psolos
                     else:
                         allkickers = ppairs
                     pointU = list(set(tmphand))
                     for p in pointU:
-                        allkickers.remove([p])
-                        allkickers.remove([p]*2)
+                        if [p] in allkickers:
+                            allkickers.remove([p])
+                        if [p]*2 in allkickers:
+                            allkickers.remove([p]*2)
             kickers_input = self.kickersmodel.ch2input(net_input,tmphand)
             kickers_onehot = self.kickersmodel.allkickers2onehot(allkickers)
             num = choice[0]['chain']
@@ -308,5 +313,5 @@ class FTLBot:
         return self.makeData(cardChoice)
 
 if __name__ == "__main__":
-    print(FTLBot.maxValueKickers([[1],[13]],[[2,2]],[1,2],[]))
-    print(FTLBot.searchHuman([0,1,2,4,5,6,16,17,18,23,43,22,53],[],[]))
+    #print(FTLBot.maxValueKickers([[1],[13]],[[2,2]],[1,2],[]))
+    print(FTLBot.searchHuman([0,1,2,4,5,6,12,16,24, 25, 48, 49, 50, 51],[],[],0))
