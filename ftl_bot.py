@@ -9,8 +9,8 @@ from Network import PlayModel
 
 # Fight The Landlord executor
 
-SoloPairScore = [[50,49,48,47,46,45,44,40,36,34,30,20,5,0,0],
-                 [25,24,23,22,21,20,19,18,17,16,14,10,2,0,0]]
+SoloPairScore = [[60,56,52,48,44,40,36,32,28,24,20,12,4,1,0],
+                 [40,38,36,34,30,28,26,24,20,16,12,6,2,0,0]]
 
 # Initialization using the JSON input
 class FTLBot:
@@ -168,8 +168,12 @@ class FTLBot:
                 if p[0] == 12 and len(twos) != 0:continue
                 solos.remove([p[0]])
             for p in bombs:
+                if p[0] == 13: solos.remove([p[1]])
                 solos.remove([p[0]])
             success,val,solos,pairs = FTLBot.maxValueKickers(solos,pairs,sknum,pknum)
+            '''print(solos)
+            print(pairs)
+            print(bonus)'''
             val += bonus
             #print(val)
             #print(val)
@@ -205,10 +209,12 @@ class FTLBot:
             for c in cardsc:
                 nextcards.remove(c)
             hand = simulator.Hand(cardsc)
-            if hand.type == "Bomb":
+            if hand.type == "Bomb" and not isinstance(p[0],list):
                 nbonus += 90
-            elif hand.type == "Trio":
-                nbonus += hand.chain*hand.chain
+            elif hand.type == "Trio" and hand.chain > 1:
+                nbonus += hand.chain*hand.chain*10
+            elif hand.type == "Four" and hand.chain > 1:
+                nbonus += hand.chain*hand.chain*10
             '''print(p)
             print(tmpc)
             print(nextcards)
@@ -248,6 +254,9 @@ class FTLBot:
             success,maxval,pPlays,psolos,ppairs,pbombs = self.searchHuman(self.simulator.myCards,[],[])
             if success:
                 possiblePlays = pPlays
+            if possiblePlays:
+                possiblePlays.extend(psolos)
+                possiblePlays.extend(ppairs)
             #print("Search Human!!!")
             #print(possiblePlays)
         if possiblePlays == []:
@@ -321,4 +330,23 @@ class FTLBot:
 
 if __name__ == "__main__":
     #print(FTLBot.maxValueKickers([[1],[13]],[[2,2]],[1,2],[]))
-    print(FTLBot.searchHuman([0,1,2,4,5,6,12,16,24, 25, 48, 49, 50, 51],[],[],0))
+    print(FTLBot.searchHuman([16,
+				15,
+				0,
+				14,
+				19,
+				20,
+				22,
+				49,
+				28,
+				48,
+				17,
+				18,
+				11,
+				9,
+				35,
+				50,
+				41,
+				26,
+				1,
+				12],[],[],0))

@@ -822,8 +822,8 @@ class CardInterpreter:
 
 # Fight The Landlord executor
 
-SoloPairScore = [[50,49,48,47,46,45,44,40,36,34,30,20,5,0,0],
-                 [25,24,23,22,21,20,19,18,17,16,14,10,2,0,0]]
+SoloPairScore = [[60,56,52,48,44,40,36,32,28,24,20,12,4,1,0],
+                 [40,38,36,34,30,28,26,24,20,16,12,6,2,0,0]]
 
 # Initialization using the JSON input
 class FTLBot:
@@ -862,7 +862,7 @@ class FTLBot:
                 otherPlayerHistory = rawRequest[rnd+1]["history"]
                 plays = [rawInput["responses"][rnd], otherPlayerHistory[0], otherPlayerHistory[1]]
                 for turn in range(3):
-                    #print(str((myBotID+turn)%3)+" Plays "+simulator.Hand(plays[turn]).report())
+                    #print(str((myBotID+turn)%3)+" Plays "+Hand(plays[turn]).report())
                     sim.play((myBotID+turn)%3, plays[turn])
 
             # check if this is my turn
@@ -970,13 +970,23 @@ class FTLBot:
            possiblePlays.remove(p)
         for p in twos:
             possiblePlays.remove(p)
+        #print(possiblePlays)
+        #print(solos)
+        #print(pairs)
+        #print(bombs)
+        #print(twos)
+        #print(bombs)
         if len(possiblePlays) == 0:
             for p in pairs:
                 if p[0] == 12 and len(twos) != 0:continue
                 solos.remove([p[0]])
             for p in bombs:
+                if p[0] == 13: solos.remove([p[1]])
                 solos.remove([p[0]])
             success,val,solos,pairs = FTLBot.maxValueKickers(solos,pairs,sknum,pknum)
+            '''print(solos)
+            print(pairs)
+            print(bonus)'''
             val += bonus
             #print(val)
             #print(val)
@@ -1012,10 +1022,18 @@ class FTLBot:
             for c in cardsc:
                 nextcards.remove(c)
             hand = Hand(cardsc)
-            if hand.type == "Bomb":
+            if hand.type == "Bomb" and not isinstance(p[0],list):
                 nbonus += 90
-            elif hand.type == "Trio":
-                nbonus += hand.chain*hand.chain
+            elif hand.type == "Trio" and hand.chain > 1:
+                nbonus += hand.chain*hand.chain*10
+            elif hand.type == "Four" and hand.chain > 1:
+                nbonus += hand.chain*hand.chain*10
+            '''print(p)
+            print(tmpc)
+            print(nextcards)
+            print(nsknum)
+            print(npknum)
+            print(nbonus)'''
             success,tval,tlist,tsolos,tparis,tbombs = FTLBot.searchHuman(nextcards,nsknum,npknum,nbonus)
             if tval > maxval:
                 maxsuccess = success
@@ -1040,25 +1058,40 @@ class FTLBot:
             
     # Return the decision based on type
     def makeDecision(self):
+        sim = self.simulator
         lastHand = Hand(self.simulator.cardsToFollow)
         possiblePlays = []
         usedHuman = False
         if self.addHuman and lastHand.type == "Pass":
+            # Human Policy
             success,maxval,pPlays,psolos,ppairs,pbombs = self.searchHuman(self.simulator.myCards,[],[])
             if success:
                 possiblePlays = pPlays
+            if possiblePlays:
+                possiblePlays.extend(psolos)
+                possiblePlays.extend(ppairs)
         if possiblePlays == []:
             possiblePlays = CardInterpreter.splitCard(self.simulator.myCards, lastHand)
         else:
             usedHuman = True
-
+        #print(possiblePlays)
+        
+        addNonZero = 0
+        if self.addHuman:
+            if sim.nowPlayer == 0 and (sim.cardCnt[1] <= 2 or sim.cardCnt[2] <= 2):
+                addNonZero += 50
+            elif sim.nowPlayer == 1 and sim.cardCnt[0] <= 2 and sim.lastPlay:
+                addNonZero += 50
+            elif sim.nowPlayer == 2 and sim.cardCnt[0] <= 2 and sim.lastPlay == []:
+                addNonZero += 50
+        #print(addNonZero)
+                      
         if not len(possiblePlays):
             return self.makeData([])
         
-        sim = self.simulator
         one_hot_t = self.playmodel.hand2one_hot(possiblePlays)
         net_input = self.playmodel.ch2input(sim.nowPlayer,sim.myCards,sim.publicCard,sim.history,sim.lastPlay,sim.lastLastPlay,one_hot_t)
-        actidx,val = self.playmodel.get_action(net_input, one_hot_t,self.norand)
+        actidx,val = self.playmodel.get_action(net_input, one_hot_t, self.norand, addNonZero)
         choice = self.playmodel.idx2CardPs(actidx)
 
         # Add kickers, if first element is dict, the choice must has some kickers
@@ -1094,8 +1127,9 @@ class FTLBot:
                 kickers_onehot[kidx] = 0
             for k in kickers:
                 tmphand.extend(k)
+            #print(self.kickersmodel.episodeTemp)
             choice = tmphand
-        cardChoice = CardInterpreter.selectCardByHand(self.simulator.myCards, choice)       
+        cardChoice = CardInterpreter.selectCardByHand(self.simulator.myCards, choice)
 
         return self.makeData(cardChoice,val)
 
