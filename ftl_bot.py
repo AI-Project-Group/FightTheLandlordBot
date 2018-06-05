@@ -239,10 +239,12 @@ class FTLBot:
             
     # Return the decision based on type
     def makeDecision(self):
+        sim = self.simulator
         lastHand = simulator.Hand(self.simulator.cardsToFollow)
         possiblePlays = []
         usedHuman = False
         if self.addHuman and lastHand.type == "Pass":
+            # Human Policy
             success,maxval,pPlays,psolos,ppairs,pbombs = self.searchHuman(self.simulator.myCards,[],[])
             if success:
                 possiblePlays = pPlays
@@ -253,23 +255,30 @@ class FTLBot:
         else:
             usedHuman = True
         #print(possiblePlays)
-
-        # @TODO You need to modify the following part !!
-        # A little messed up ...
+        
+        addNonZero = 0
+        if self.addHuman:
+            if sim.nowPlayer == 0 and (sim.cardCnt[1] <= 2 or sim.cardCnt[2] <= 2):
+                addNonZero += 50
+            elif sim.nowPlayer == 1 and sim.cardCnt[0] <= 2 and sim.lastPlay:
+                addNonZero += 50
+            elif sim.nowPlayer == 2 and sim.cardCnt[0] <= 2 and sim.lastPlay == []:
+                addNonZero += 50
+        #print(addNonZero)
+                      
         if not len(possiblePlays):
             return self.makeData([])
         
-        sim = self.simulator
         one_hot_t = self.playmodel.hand2one_hot(possiblePlays)
         net_input = self.playmodel.ch2input(sim.nowPlayer,sim.myCards,sim.publicCard,sim.history,sim.lastPlay,sim.lastLastPlay,one_hot_t)
         #print(net_input.shape)
         #print(net_input)
-        actidx,val = self.playmodel.get_action(net_input, one_hot_t,self.norand)
+        actidx,val = self.playmodel.get_action(net_input, one_hot_t, self.norand, addNonZero)
         choice = self.playmodel.idx2CardPs(actidx)
         #print(choice)
 
         # Add kickers, if first element is dict, the choice must has some kickers
-        # @TODO get kickers from kickers model
+        # get kickers from kickers model
         if choice and isinstance(choice[0],dict):
             tmphand = choice[1:]
             allkickers = simulator.CardInterpreter.getKickers(sim.myCards, choice[0]["kickerNum"], list(set(tmphand)))
@@ -306,10 +315,8 @@ class FTLBot:
             choice = tmphand
         cardChoice = simulator.CardInterpreter.selectCardByHand(self.simulator.myCards, choice)
         
-        #self.playmodel.storeSamples(net_input,cardChoice, len(possiblePlays) == 1 and choice == [])
         self.playmodel.storeSamples(net_input,cardChoice,one_hot_t)
 
-        # You need to modify the previous part !!
         return self.makeData(cardChoice)
 
 if __name__ == "__main__":

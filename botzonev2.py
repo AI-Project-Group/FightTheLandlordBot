@@ -1097,7 +1097,6 @@ class FTLBot:
             choice = tmphand
         cardChoice = CardInterpreter.selectCardByHand(self.simulator.myCards, choice)       
 
-        # You need to modify the previous part !!
         return self.makeData(cardChoice,val)
 
 if __name__ == "__main__":
