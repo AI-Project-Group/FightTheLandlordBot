@@ -39,7 +39,7 @@ if __name__ == "__main__":
         cards = list(range(0, 54))
         random.shuffle(cards)
         for t in range(2):
-            ftlJudge = FTLJudgement(cards, False)
+            ftlJudge = FTLJudgement(cards, True)
             winner,scores,_ = ftlJudge.work(playmodel[t],kickersmodel,ep,"Test",addHuman[t])
             if t == 0:
                 if winner == 0:

@@ -306,10 +306,13 @@ class CardInterpreter:
         if lastHand.type == "Trio":
             for i, c in enumerate(trioRec):
                 if trioChainCnt[i] >= lastHand.chain and c-trioChainCnt[i]+1 > lastHand.primal: # able to follow
-                    kickers = CardInterpreter.getKickers(cards, lastHand.kickerNum, list(range(c-lastHand.chain+1, c+1)))
-                    if len(kickers) >= lastHand.chain:
-                        allHands.append([kickers])
-                        allHands[-1].extend(list(range(c-lastHand.chain+1, c+1))*3)
+                    if lastHand.kickerNum > 0:
+                        kickers = CardInterpreter.getKickers(cards, lastHand.kickerNum, list(range(c-lastHand.chain+1, c+1)))
+                        if len(kickers) >= lastHand.chain:
+                            allHands.append([kickers])
+                            allHands[-1].extend(list(range(c-lastHand.chain+1, c+1))*3)
+                    else:
+                        allHands.append(list(range(c-lastHand.chain+1, c+1))*3)
             return allHands
 
         # Here, lastHand.type = "Pass". you can play any type you want

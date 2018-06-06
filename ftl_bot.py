@@ -14,7 +14,7 @@ SoloPairScore = [[60,56,52,48,44,40,36,32,28,24,20,12,4,1,0],
 
 # Initialization using the JSON input
 class FTLBot:
-    def __init__(self, playmodel,kickersmodel, data, dataType = "Judge", norand=False, addHuman=False):
+    def __init__(self, playmodel, kickersmodel, data, dataType = "Judge", norand=False, addHuman=False):
         self.dataType = dataType
         self.playmodel = playmodel
         #self.valuemodel = valuemodel
@@ -247,34 +247,43 @@ class FTLBot:
     def makeDecision(self):
         sim = self.simulator
         lastHand = simulator.Hand(sim.cardsToFollow)
-        possiblePlays = []
-        usedHuman = False
-        if self.addHuman and (lastHand.type == "Pass" or len(sim.cardsToFollow) == 1 or len(sim.cardsToFollow) == 2):
+        possiblePlays = simulator.CardInterpreter.splitCard(self.simulator.myCards, lastHand)
+        #print(len(possiblePlays))
+        if self.addHuman and len(possiblePlays) > 1:
             # Human Policy
+            possiblePlays = []
             success,maxval,pPlays,psolos,ppairs,pbombs = self.searchHuman(self.simulator.myCards,[],[])
-            if lastHand.type == "Pass" and success:
-                possiblePlays = pPlays
-                if possiblePlays:
-                    possiblePlays.extend(psolos)
-                    possiblePlays.extend(ppairs)
-            elif success:
-                if lastHand.type == "Solo":possiblePlays=psolos
-                else:possiblePlays=ppairs
-                ablelist = []
-                for p in possiblePlays:
-                    nowHand = simulator.Hand([],p)
-                    if nowHand.isAbleToFollow(lastHand):
-                        ablelist.append(p)
-                possiblePlays = ablelist
-                if possiblePlays:
-                    possiblePlays.append([])
-                    possiblePlays.extend(pbombs)
-            #print("Search Human!!!")
-            #print(possiblePlays)
+            if success:
+                remains = []
+                remains.extend(pPlays)
+                remains.extend(psolos)
+                remains.extend(ppairs)
+                if len(pbombs) >= 1 and len(remains) == 1:
+                    if lastHand.type != "Pass":
+                        possiblePlays.append(pbombs[0])
+                    else:
+                        possiblePlays.append(remains[0])
+                elif lastHand.type == "Pass":
+                    possiblePlays = pPlays
+                    if possiblePlays:
+                        possiblePlays.extend(psolos)
+                        possiblePlays.extend(ppairs)
+                elif len(sim.cardsToFollow) == 1 or len(sim.cardsToFollow) == 2:
+                    if lastHand.type == "Solo":possiblePlays=psolos
+                    else:possiblePlays=ppairs
+                    ablelist = []
+                    for p in possiblePlays:
+                        nowHand = simulator.Hand([],p)
+                        if nowHand.isAbleToFollow(lastHand):
+                            ablelist.append(p)
+                    possiblePlays = ablelist
+                    if possiblePlays:
+                        possiblePlays.append([])
+                        possiblePlays.extend(pbombs)
+            print("Search Human!!!")
+            print(possiblePlays)
         if possiblePlays == []:
             possiblePlays = simulator.CardInterpreter.splitCard(self.simulator.myCards, lastHand)
-        else:
-            usedHuman = True
         #print(possiblePlays)
         
         addNonZero = 0
@@ -285,6 +294,7 @@ class FTLBot:
                 addNonZero += 50
             elif sim.nowPlayer == 2 and sim.cardCnt[0] <= 2 and sim.lastPlay == []:
                 addNonZero += 50
+            print("NonZero Human")
         #print(addNonZero)
                       
         if not len(possiblePlays):
@@ -318,6 +328,7 @@ class FTLBot:
                             allkickers.remove([p])
                         if [p]*2 in allkickers:
                             allkickers.remove([p]*2)
+                print("Kickers Human")
             kickers_input = self.kickersmodel.ch2input(net_input,tmphand)
             kickers_onehot = self.kickersmodel.allkickers2onehot(allkickers)
             num = choice[0]['chain']
@@ -342,23 +353,5 @@ class FTLBot:
 
 if __name__ == "__main__":
     #print(FTLBot.maxValueKickers([[1],[13]],[[2,2]],[1,2],[]))
-    print(FTLBot.searchHuman([16,
-				15,
-				0,
-				14,
-				19,
-				20,
-				22,
-				49,
-				28,
-				48,
-				17,
-				18,
-				11,
-				9,
-				35,
-				50,
-				41,
-				26,
-				1,
-				12],[],[],0))
+    print(FTLBot.searchHuman([0,1,52,53],[],[],0))
+    print(simulator.CardInterpreter.splitCard([8,9,10,12,13,14,20,21,22,23,24,25], simulator.Hand([4,5,6,7,30,31,35,34])))
