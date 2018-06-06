@@ -1063,34 +1063,43 @@ class FTLBot:
     def makeDecision(self):
         sim = self.simulator
         lastHand = Hand(sim.cardsToFollow)
-        possiblePlays = []
-        usedHuman = False
-        if self.addHuman and (lastHand.type == "Pass" or len(sim.cardsToFollow) == 1 or len(sim.cardsToFollow) == 2):
+        possiblePlays = CardInterpreter.splitCard(self.simulator.myCards, lastHand)
+        #print(len(possiblePlays))
+        if self.addHuman and len(possiblePlays) > 1:
             # Human Policy
+            possiblePlays = []
             success,maxval,pPlays,psolos,ppairs,pbombs = self.searchHuman(self.simulator.myCards,[],[])
-            if lastHand.type == "Pass" and success:
-                possiblePlays = pPlays
-                if possiblePlays:
-                    possiblePlays.extend(psolos)
-                    possiblePlays.extend(ppairs)
-            elif success:
-                if lastHand.type == "Solo":possiblePlays=psolos
-                else:possiblePlays=ppairs
-                ablelist = []
-                for p in possiblePlays:
-                    nowHand = Hand([],p)
-                    if nowHand.isAbleToFollow(lastHand):
-                        ablelist.append(p)
-                possiblePlays = ablelist
-                if possiblePlays:
-                    possiblePlays.append([])
-                    possiblePlays.extend(pbombs)
+            if success:
+                remains = []
+                remains.extend(pPlays)
+                remains.extend(psolos)
+                remains.extend(ppairs)
+                if len(pbombs) >= 1 and len(remains) == 1:
+                    if lastHand.type != "Pass":
+                        possiblePlays.append(pbombs[0])
+                    else:
+                        possiblePlays.append(remains[0])
+                elif lastHand.type == "Pass":
+                    possiblePlays = pPlays
+                    if possiblePlays:
+                        possiblePlays.extend(psolos)
+                        possiblePlays.extend(ppairs)
+                elif len(sim.cardsToFollow) == 1 or len(sim.cardsToFollow) == 2:
+                    if lastHand.type == "Solo":possiblePlays=psolos
+                    else:possiblePlays=ppairs
+                    ablelist = []
+                    for p in possiblePlays:
+                        nowHand = Hand([],p)
+                        if nowHand.isAbleToFollow(lastHand):
+                            ablelist.append(p)
+                    possiblePlays = ablelist
+                    if possiblePlays:
+                        possiblePlays.append([])
+                        possiblePlays.extend(pbombs)
             #print("Search Human!!!")
             #print(possiblePlays)
         if possiblePlays == []:
-            possiblePlays = CardInterpreter.splitCard(self.simulator.myCards, lastHand)
-        else:
-            usedHuman = True
+            possiblePlays = simulator.CardInterpreter.splitCard(self.simulator.myCards, lastHand)
         #print(possiblePlays)
         
         addNonZero = 0

@@ -280,8 +280,8 @@ class FTLBot:
                     if possiblePlays:
                         possiblePlays.append([])
                         possiblePlays.extend(pbombs)
-            print("Search Human!!!")
-            print(possiblePlays)
+            #print("Search Human!!!")
+            #print(possiblePlays)
         if possiblePlays == []:
             possiblePlays = simulator.CardInterpreter.splitCard(self.simulator.myCards, lastHand)
         #print(possiblePlays)
@@ -294,7 +294,7 @@ class FTLBot:
                 addNonZero += 50
             elif sim.nowPlayer == 2 and sim.cardCnt[0] <= 2 and sim.lastPlay == []:
                 addNonZero += 50
-            print("NonZero Human")
+            #print("NonZero Human")
         #print(addNonZero)
                       
         if not len(possiblePlays):
@@ -328,7 +328,7 @@ class FTLBot:
                             allkickers.remove([p])
                         if [p]*2 in allkickers:
                             allkickers.remove([p]*2)
-                print("Kickers Human")
+                #print("Kickers Human")
             kickers_input = self.kickersmodel.ch2input(net_input,tmphand)
             kickers_onehot = self.kickersmodel.allkickers2onehot(allkickers)
             num = choice[0]['chain']
