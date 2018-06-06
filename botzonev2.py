@@ -1099,7 +1099,7 @@ class FTLBot:
             #print("Search Human!!!")
             #print(possiblePlays)
         if possiblePlays == []:
-            possiblePlays = simulator.CardInterpreter.splitCard(self.simulator.myCards, lastHand)
+            possiblePlays = CardInterpreter.splitCard(self.simulator.myCards, lastHand)
         #print(possiblePlays)
         
         addNonZero = 0
