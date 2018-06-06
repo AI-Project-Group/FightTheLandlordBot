@@ -246,17 +246,29 @@ class FTLBot:
     # Return the decision based on type
     def makeDecision(self):
         sim = self.simulator
-        lastHand = simulator.Hand(self.simulator.cardsToFollow)
+        lastHand = simulator.Hand(sim.cardsToFollow)
         possiblePlays = []
         usedHuman = False
-        if self.addHuman and lastHand.type == "Pass":
+        if self.addHuman and (lastHand.type == "Pass" or len(sim.cardsToFollow) == 1 or len(sim.cardsToFollow) == 2):
             # Human Policy
             success,maxval,pPlays,psolos,ppairs,pbombs = self.searchHuman(self.simulator.myCards,[],[])
-            if success:
+            if lastHand.type == "Pass" and success:
                 possiblePlays = pPlays
-            if possiblePlays:
-                possiblePlays.extend(psolos)
-                possiblePlays.extend(ppairs)
+                if possiblePlays:
+                    possiblePlays.extend(psolos)
+                    possiblePlays.extend(ppairs)
+            elif success:
+                if lastHand.type == "Solo":possiblePlays=psolos
+                else:possiblePlays=ppairs
+                ablelist = []
+                for p in possiblePlays:
+                    nowHand = simulator.Hand([],p)
+                    if nowHand.isAbleToFollow(lastHand):
+                        ablelist.append(p)
+                possiblePlays = ablelist
+                if possiblePlays:
+                    possiblePlays.append([])
+                    possiblePlays.extend(pbombs)
             #print("Search Human!!!")
             #print(possiblePlays)
         if possiblePlays == []:
