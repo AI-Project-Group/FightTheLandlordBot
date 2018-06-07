@@ -265,7 +265,7 @@ class FTLBot:
                         possiblePlays.append(remains[0])
                 elif lastHand.type == "Pass":
                     possiblePlays = pPlays
-                    if possiblePlays:
+                    if not (sim.nowPlayer == 1 and sim.cardCnt[2] <= 2) and possiblePlays:
                         possiblePlays.extend(psolos)
                         possiblePlays.extend(ppairs)
                 elif len(sim.cardsToFollow) == 1 or len(sim.cardsToFollow) == 2:
@@ -354,4 +354,4 @@ class FTLBot:
 if __name__ == "__main__":
     #print(FTLBot.maxValueKickers([[1],[13]],[[2,2]],[1,2],[]))
     print(FTLBot.searchHuman([0,1,52,53],[],[],0))
-    print(simulator.CardInterpreter.splitCard([8,9,10,12,13,14,20,21,22,23,24,25], simulator.Hand([4,5,6,7,30,31,35,34])))
+    print(simulator.CardInterpreter.splitCard([8,9,10,12,13,14,20,21,22,23,24,25], simulator.Hand([4,5])))

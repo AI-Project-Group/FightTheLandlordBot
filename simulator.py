@@ -295,17 +295,17 @@ class CardInterpreter:
         # Record Chain
         if lastHand.type == "Solo":
             for i, c in enumerate(soloRec):
-                if soloChainCnt[i] >= lastHand.chain and c-soloChainCnt[i]+1 > lastHand.primal: # able to follow
+                if soloChainCnt[i] >= lastHand.chain and c-lastHand.chain+1 > lastHand.primal: # able to follow
                     allHands.append(list(range(c-lastHand.chain+1, c+1)))
             return allHands
         if lastHand.type == "Pair":
             for i, c in enumerate(pairRec):
-                if pairChainCnt[i] >= lastHand.chain and c-pairChainCnt[i]+1 > lastHand.primal: # able to follow
+                if pairChainCnt[i] >= lastHand.chain and c-lastHand.chain+1 > lastHand.primal: # able to follow
                     allHands.append(list(range(c-lastHand.chain+1, c+1))*2)
             return allHands
         if lastHand.type == "Trio":
             for i, c in enumerate(trioRec):
-                if trioChainCnt[i] >= lastHand.chain and c-trioChainCnt[i]+1 > lastHand.primal: # able to follow
+                if trioChainCnt[i] >= lastHand.chain and c-lastHand.chain+1 > lastHand.primal: # able to follow
                     if lastHand.kickerNum > 0:
                         kickers = CardInterpreter.getKickers(cards, lastHand.kickerNum, list(range(c-lastHand.chain+1, c+1)))
                         if len(kickers) >= lastHand.chain:

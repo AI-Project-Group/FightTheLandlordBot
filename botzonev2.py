@@ -732,17 +732,17 @@ class CardInterpreter:
         # Record Chain
         if lastHand.type == "Solo":
             for i, c in enumerate(soloRec):
-                if soloChainCnt[i] >= lastHand.chain and c-soloChainCnt[i]+1 > lastHand.primal: # able to follow
+                if soloChainCnt[i] >= lastHand.chain and c-lastHand.chain+1 > lastHand.primal: # able to follow
                     allHands.append(list(range(c-lastHand.chain+1, c+1)))
             return allHands
         if lastHand.type == "Pair":
             for i, c in enumerate(pairRec):
-                if pairChainCnt[i] >= lastHand.chain and c-pairChainCnt[i]+1 > lastHand.primal: # able to follow
+                if pairChainCnt[i] >= lastHand.chain and c-lastHand.chain+1 > lastHand.primal: # able to follow
                     allHands.append(list(range(c-lastHand.chain+1, c+1))*2)
             return allHands
         if lastHand.type == "Trio":
             for i, c in enumerate(trioRec):
-                if trioChainCnt[i] >= lastHand.chain and c-trioChainCnt[i]+1 > lastHand.primal: # able to follow
+                if trioChainCnt[i] >= lastHand.chain and c-lastHand.chain+1 > lastHand.primal: # able to follow
                     if lastHand.kickerNum > 0:
                         kickers = CardInterpreter.getKickers(cards, lastHand.kickerNum, list(range(c-lastHand.chain+1, c+1)))
                         if len(kickers) >= lastHand.chain:
@@ -1063,6 +1063,7 @@ class FTLBot:
     def makeDecision(self):
         sim = self.simulator
         lastHand = Hand(sim.cardsToFollow)
+        #print(sim.cardsToFollow)
         possiblePlays = CardInterpreter.splitCard(self.simulator.myCards, lastHand)
         #print(len(possiblePlays))
         if self.addHuman and len(possiblePlays) > 1:
@@ -1081,7 +1082,7 @@ class FTLBot:
                         possiblePlays.append(remains[0])
                 elif lastHand.type == "Pass":
                     possiblePlays = pPlays
-                    if possiblePlays:
+                    if not (sim.nowPlayer == 1 and sim.cardCnt[2] <= 2) and possiblePlays:
                         possiblePlays.extend(psolos)
                         possiblePlays.extend(ppairs)
                 elif len(sim.cardsToFollow) == 1 or len(sim.cardsToFollow) == 2:
