@@ -1112,6 +1112,9 @@ class FTLBot:
                 addNonZero += 50
             elif sim.nowPlayer == 2 and sim.cardCnt[0] <= 2 and sim.lastPlay == []:
                 addNonZero += 50
+            if sim.nowPlayer != 0 and lastHand.type == "Bomb":
+                if (sim.nowPlayer == 1 and sim.cardsToFollow == sim.lastLastPlay) or (sim.nowPlayer == 2 and sim.cardsToFollow == sim.lastPlay):
+                    possiblePlays = [[]]                
         #print(addNonZero)
                       
         if not len(possiblePlays):
