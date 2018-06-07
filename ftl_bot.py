@@ -259,6 +259,7 @@ class FTLBot:
                 remains.extend(psolos)
                 remains.extend(ppairs)
                 if len(pbombs) >= 1 and len(remains) == 1:
+                    pbombs.sort()
                     if lastHand.type != "Pass":
                         possiblePlays.append(pbombs[0])
                     else:
@@ -313,6 +314,10 @@ class FTLBot:
         if choice and isinstance(choice[0],dict):
             tmphand = choice[1:]
             allkickers = simulator.CardInterpreter.getKickers(sim.myCards, choice[0]["kickerNum"], list(set(tmphand)))
+            num = choice[0]['chain']
+            if choice[0]["type"] == "Four":
+                num *= 2
+            kickers = []
             if self.addHuman:
                 tmpchoice = choice[:]
                 tmpchoice[0] = allkickers
@@ -328,18 +333,18 @@ class FTLBot:
                             allkickers.remove([p])
                         if [p]*2 in allkickers:
                             allkickers.remove([p]*2)
-                #print("Kickers Human")
+                    for _ in range(num):
+                        kickers.append(allkickers[0])
+                        allkickers.remove(allkickers[0])
+                    #print("Kickers Human")
             kickers_input = self.kickersmodel.ch2input(net_input,tmphand)
-            kickers_onehot = self.kickersmodel.allkickers2onehot(allkickers)
-            num = choice[0]['chain']
-            if choice[0]["type"] == "Four":
-                num *= 2
-            kickers = []
-            for _ in range(num):
-                actidx,val = self.kickersmodel.get_action(kickers_input,kickers_onehot,self.norand)
-                kickers.append(self.kickersmodel.idx2CardPs(actidx))
-                kidx = self.kickersmodel.cardPs2idx(kickers[-1])
-                kickers_onehot[kidx] = 0
+            if kickers == []:
+                kickers_onehot = self.kickersmodel.allkickers2onehot(allkickers)
+                for _ in range(num):
+                    actidx,val = self.kickersmodel.get_action(kickers_input,kickers_onehot,self.norand)
+                    kickers.append(self.kickersmodel.idx2CardPs(actidx))
+                    kidx = self.kickersmodel.cardPs2idx(kickers[-1])
+                    kickers_onehot[kidx] = 0
             for k in kickers:
                 tmphand.extend(k)
                 self.kickersmodel.storeSamples(kickers_input,sim.nowPlayer,k,sim.nowTurn)
@@ -353,5 +358,5 @@ class FTLBot:
 
 if __name__ == "__main__":
     #print(FTLBot.maxValueKickers([[1],[13]],[[2,2]],[1,2],[]))
-    print(FTLBot.searchHuman([0,1,52,53],[],[],0))
+    print(FTLBot.searchHuman([53,52,4,5,6,7,0,1,2,3],[],[],0))
     print(simulator.CardInterpreter.splitCard([8,9,10,12,13,14,20,21,22,23,24,25], simulator.Hand([4,5])))
