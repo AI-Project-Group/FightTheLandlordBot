@@ -15,6 +15,8 @@ class FTLSimulator:
         self.publicCard = [] # 3 public cards owned by the landlord when dealing
         self.nowTurn = -1 # the present gaming turn (3 plays (including pass) each turn), -1 for not played yet
         self.history = [[], [], []] # history[p][k]: the card played by player p in the k-th turn
+        self.leftCards = [4 for i in range(13)]
+        self.leftCards.extend([1,1])
 
         # Operation Accessories
         self.isCardPlayed = [0] * 54 # isCardPlayed[i]: is card serial i played by any player
@@ -37,6 +39,7 @@ class FTLSimulator:
         self.cardCnt[player] -= len(cards)
         for card in cards:
             self.isCardPlayed[card] = 0
+            self.leftCards[Hand.getCardPoint(card)] -= 1
         # It's me playing
         if player == self.nowPlayer:
             for card in cards: # play my cards
