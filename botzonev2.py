@@ -1121,7 +1121,7 @@ class FTLBot:
             return self.makeData([])
         
         one_hot_t = self.playmodel.hand2one_hot(possiblePlays)
-        ori_one_hot_t = self.playmodel.hand2one_hot(simulator.CardInterpreter.splitCard(self.simulator.myCards, lastHand))
+        ori_one_hot_t = self.playmodel.hand2one_hot(CardInterpreter.splitCard(self.simulator.myCards, lastHand))
         net_input = self.playmodel.ch2input(sim.nowPlayer,sim.myCards,sim.publicCard,sim.history,sim.lastPlay,sim.lastLastPlay,ori_one_hot_t)
         actidx,val = self.playmodel.get_action(net_input, one_hot_t, self.norand, addNonZero)
         choice = self.playmodel.idx2CardPs(actidx)
