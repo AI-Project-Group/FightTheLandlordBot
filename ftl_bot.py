@@ -248,7 +248,6 @@ class FTLBot:
         sim = self.simulator
         lastHand = simulator.Hand(sim.cardsToFollow)
         possiblePlays = simulator.CardInterpreter.splitCard(self.simulator.myCards, lastHand)
-        #print(len(possiblePlays))
         if self.addHuman and len(possiblePlays) > 1:
             # Human Policy
             possiblePlays = []
@@ -305,12 +304,10 @@ class FTLBot:
             return self.makeData([])
         
         one_hot_t = self.playmodel.hand2one_hot(possiblePlays)
-        net_input = self.playmodel.ch2input(sim.nowPlayer,sim.myCards,sim.publicCard,sim.history,sim.lastPlay,sim.lastLastPlay,one_hot_t)
-        #print(net_input.shape)
-        #print(net_input)
+        ori_one_hot_t = self.playmodel.hand2one_hot(simulator.CardInterpreter.splitCard(self.simulator.myCards, lastHand))
+        net_input = self.playmodel.ch2input(sim.nowPlayer,sim.myCards,sim.publicCard,sim.history,sim.lastPlay,sim.lastLastPlay,ori_one_hot_t)
         actidx,val = self.playmodel.get_action(net_input, one_hot_t, self.norand, addNonZero)
         choice = self.playmodel.idx2CardPs(actidx)
-        #print(choice)
 
         # Add kickers, if first element is dict, the choice must has some kickers
         # get kickers from kickers model
