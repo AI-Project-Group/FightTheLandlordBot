@@ -30,7 +30,7 @@ if __name__ == "__main__":
         playmodel[0].append(PlayModel("play2",sess2,2))
     kickersmodel.load_model("data/best/","DQN")
     playmodel[0][2].load_model("data/FTL/","DQN")
-    addHuman= [[False,True,True],[True,False,False]]
+    addHuman= [[True,True,True],[True,True,True]]
     
     twins = 0
     sum_scores = [[],[]]
