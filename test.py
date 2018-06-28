@@ -5,6 +5,8 @@ from ftl_judgement import FTLJudgement
 from DQNModel import PlayModel, KickersModel
 
 MaxEpisode = 1000
+test1_dir = "data/best/"
+test2_dir = "data/FTL/"
 
 if __name__ == "__main__":
     lordg = tf.Graph()
@@ -28,8 +30,8 @@ if __name__ == "__main__":
         playmodel[1][0] = PlayModel("play0",sess2,0)
         playmodel[0].append(PlayModel("play1",sess2,1))
         playmodel[0].append(PlayModel("play2",sess2,2))
-    kickersmodel.load_model("data/best/","DQN")
-    playmodel[0][2].load_model("data/FTL/","DQN")
+    kickersmodel.load_model(test1_dir,"DQN")
+    playmodel[0][2].load_model(test2_dir,"DQN")
     addHuman= [[True,True,True],[True,True,True]]
     
     twins = 0
